@@ -44,7 +44,7 @@ class PickBoxEnv(Env):
         self._latest_action = None
         self._render_cache = None
 
-        scene_path = Path(__file__).parent.parent / Path("assets/scenes/pick_box_scene.xml")
+        scene_path = Path(__file__).parent.parent / Path("assets/scenes/pick_box_scene_copy.xml")
         self._mj_model: mujoco.MjModel = mujoco.MjModel.from_xml_path(os.fspath(scene_path))
         self._mj_data: mujoco.MjData = mujoco.MjData(self._mj_model)
         mujoco.mj_forward(self._mj_model, self._mj_data)
@@ -88,12 +88,12 @@ class PickBoxEnv(Env):
 
         # --- 夾爪已 attach 完成到 UR 法蘭 ---
         # right_pad 的當下世界位姿
-        # T_right_pad = mj.get_body_pose(self._mj_model, self._mj_data, "right_pad")
+        T_right_pad = mj.get_body_pose(self._mj_model, self._mj_data, "right_pad")
 
-        # # 一行搞定：把 wy_free 對齊 right_pad，並初始化/啟用 weld "grasp_right"
-        # mj.attach(self._mj_model, self._mj_data, "grasp_right", "wy_free", T_right_pad)
+        # 一行搞定：把 wy_free 對齊 right_pad，並初始化/啟用 weld "grasp_right"
+        mj.attach(self._mj_model, self._mj_data, "grasp_right", "wy_free", T_right_pad)
 
-        # mujoco.mj_forward(self._mj_model, self._mj_data)
+        mujoco.mj_forward(self._mj_model, self._mj_data)
         # ---
         px_box = np.random.uniform(low=1.4, high=1.5)
         py_box = np.random.uniform(low=0.3, high=0.9)
