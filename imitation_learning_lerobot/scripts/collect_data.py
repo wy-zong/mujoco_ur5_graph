@@ -2,7 +2,7 @@ from typing import Type
 from pathlib import Path
 import argparse
 import dataclasses
-from lerobot.common.datasets.lerobot_dataset import LeRobotDataset
+from lerobot.datasets.lerobot_dataset import LeRobotDataset
 
 from imitation_learning_lerobot.envs import Env, EnvFactory
 
@@ -87,7 +87,7 @@ def populate_dataset(episode: int, env_cls: Type[Env], dataset: LeRobotDataset):
     env = env_cls()
     task = env.name
     for i in range(episode):
-        data = env.run()
+        data = env.run(keep_state=(i>0))
 
         episode_length = len(data["observations"])
 

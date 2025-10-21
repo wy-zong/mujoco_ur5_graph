@@ -1,0 +1,30 @@
+<mujoco model="cloth_flex">
+  <!-- 載入彈性殼層插件（用於布料） -->
+  <!-- <extension>
+    <plugin plugin="mujoco.elasticity.shell"/>
+  </extension> -->
+
+  <worldbody>
+    <!-- 對齊你桌面/取放區：z 比 0.74 稍高以免初始交穿 -->
+    <body name="cloth_root" pos="1.40 0.60 0.745">
+      <geom type="sphere" size="0.005" rgba="1 0 0 1" contype="0" conaffinity="0"/>
+      <!-- flexcomp 的 2D 網格：17x17 節點，節點間距 2cm，碰撞球半徑 1mm -->
+      <flexcomp name="cloth" type="grid"
+                count="10 5 1" spacing="0.02 0.02 0.02"
+                radius="0.003" mass="0.04">
+        <!-- 接觸與阻尼（可按需微調） -->
+        <contact condim="3" friction="1.2 0.01 0.001" solref="0.01 1" solimp="0.9 0.98 0.01"/>
+        <edge damping="1.0"/>
+        <elasticity young="4e4" poisson="0.3" thickness="0.0006" elastic2d="none"/>
+
+
+        <!-- 彈性材料參數（幾個常用鍵） -->
+        <!-- <plugin plugin="mujoco.elasticity.shell">
+          <config key="young"     value="8.0e4"/>
+          <config key="poisson"   value="0.3"/>
+          <config key="thickness" value="0.0008"/>
+        </plugin> -->
+      </flexcomp>
+    </body>
+  </worldbody>
+</mujoco>

@@ -4,7 +4,7 @@ import argparse
 import h5py
 import numpy as np
 import dataclasses
-from lerobot.common.datasets.lerobot_dataset import LeRobotDataset
+from lerobot.datasets.lerobot_dataset import LeRobotDataset
 
 from imitation_learning_lerobot.envs import Env, EnvFactory
 

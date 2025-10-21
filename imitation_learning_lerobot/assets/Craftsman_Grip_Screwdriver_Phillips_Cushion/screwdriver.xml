@@ -1,0 +1,102 @@
+<mujoco model="model">
+  <compiler angle="radian" inertiafromgeom="true" autolimits="true"/>
+  <option timestep="0.01" integrator="implicitfast" solver="PGS"
+          gravity="0 0 -9.81" cone="elliptic" noslip_iterations="200" impratio="40"/>
+
+  <asset>
+    <texture type="2d" name="texture" file="texture.png"/>
+    <material name="material_0" texture="texture" specular="0.5" shininess="0.5"/>
+
+    <!-- 視覺主網格 -->
+    <mesh name="model_visual" file="model.obj"/>
+
+    <!-- 碰撞分塊 -->
+    <mesh name="model_col_0"  file="model_collision_0.obj"/>
+    <mesh name="model_col_1"  file="model_collision_1.obj"/>
+    <mesh name="model_col_2"  file="model_collision_2.obj"/>
+    <mesh name="model_col_3"  file="model_collision_3.obj"/>
+    <mesh name="model_col_4"  file="model_collision_4.obj"/>
+    <mesh name="model_col_5"  file="model_collision_5.obj"/>
+    <mesh name="model_col_6"  file="model_collision_6.obj"/>
+    <mesh name="model_col_7"  file="model_collision_7.obj"/>
+    <mesh name="model_col_8"  file="model_collision_8.obj"/>
+    <mesh name="model_col_9"  file="model_collision_9.obj"/>
+    <mesh name="model_col_10" file="model_collision_10.obj"/>
+    <mesh name="model_col_11" file="model_collision_11.obj"/>
+    <mesh name="model_col_12" file="model_collision_12.obj"/>
+    <mesh name="model_col_13" file="model_collision_13.obj"/>
+    <mesh name="model_col_14" file="model_collision_14.obj"/>
+    <mesh name="model_col_15" file="model_collision_15.obj"/>
+    <mesh name="model_col_16" file="model_collision_16.obj"/>
+    <mesh name="model_col_17" file="model_collision_17.obj"/>
+    <mesh name="model_col_18" file="model_collision_18.obj"/>
+    <mesh name="model_col_19" file="model_collision_19.obj"/>
+    <mesh name="model_col_20" file="model_collision_20.obj"/>
+    <mesh name="model_col_21" file="model_collision_21.obj"/>
+    <mesh name="model_col_22" file="model_collision_22.obj"/>
+    <mesh name="model_col_23" file="model_collision_23.obj"/>
+    <mesh name="model_col_24" file="model_collision_24.obj"/>
+    <mesh name="model_col_25" file="model_collision_25.obj"/>
+    <mesh name="model_col_26" file="model_collision_26.obj"/>
+    <mesh name="model_col_27" file="model_collision_27.obj"/>
+    <mesh name="model_col_28" file="model_collision_28.obj"/>
+    <mesh name="model_col_29" file="model_collision_29.obj"/>
+    <mesh name="model_col_30" file="model_collision_30.obj"/>
+    <mesh name="model_col_31" file="model_collision_31.obj"/>
+  </asset>
+
+  <default>
+    <!-- 注意：這些 class 名稱要在整個場景內唯一 -->
+    <default class="model_visual">
+      <geom type="mesh" contype="0" conaffinity="0" group="2"/>
+    </default>
+    <default class="model_collision">
+      <geom type="mesh" group="3" density="900"
+            friction="1.0 0.005 0.001"
+            solimp="0.9 0.995 0.005" solref="0.001 1"/>
+    </default>
+  </default>
+
+  <worldbody>
+    <body name="model_body" childclass="model_visual" pos="1.4 0.55 0.73">
+      <freejoint/>
+
+      <!-- 視覺 -->
+      <geom name="model_visual_geom" material="material_0" mesh="model_visual"/>
+
+      <!-- 碰撞 -->
+      <geom name="model_col_g0"  class="model_collision" mesh="model_col_0"/>
+      <geom name="model_col_g1"  class="model_collision" mesh="model_col_1"/>
+      <geom name="model_col_g2"  class="model_collision" mesh="model_col_2"/>
+      <geom name="model_col_g3"  class="model_collision" mesh="model_col_3"/>
+      <geom name="model_col_g4"  class="model_collision" mesh="model_col_4"/>
+      <geom name="model_col_g5"  class="model_collision" mesh="model_col_5"/>
+      <geom name="model_col_g6"  class="model_collision" mesh="model_col_6"/>
+      <geom name="model_col_g7"  class="model_collision" mesh="model_col_7"/>
+      <geom name="model_col_g8"  class="model_collision" mesh="model_col_8"/>
+      <geom name="model_col_g9"  class="model_collision" mesh="model_col_9"/>
+      <geom name="model_col_g10" class="model_collision" mesh="model_col_10"/>
+      <geom name="model_col_g11" class="model_collision" mesh="model_col_11"/>
+      <geom name="model_col_g12" class="model_collision" mesh="model_col_12"/>
+      <geom name="model_col_g13" class="model_collision" mesh="model_col_13"/>
+      <geom name="model_col_g14" class="model_collision" mesh="model_col_14"/>
+      <geom name="model_col_g15" class="model_collision" mesh="model_col_15"/>
+      <geom name="model_col_g16" class="model_collision" mesh="model_col_16"/>
+      <geom name="model_col_g17" class="model_collision" mesh="model_col_17"/>
+      <geom name="model_col_g18" class="model_collision" mesh="model_col_18"/>
+      <geom name="model_col_g19" class="model_collision" mesh="model_col_19"/>
+      <geom name="model_col_g20" class="model_collision" mesh="model_col_20"/>
+      <geom name="model_col_g21" class="model_collision" mesh="model_col_21"/>
+      <geom name="model_col_g22" class="model_collision" mesh="model_col_22"/>
+      <geom name="model_col_g23" class="model_collision" mesh="model_col_23"/>
+      <geom name="model_col_g24" class="model_collision" mesh="model_col_24"/>
+      <geom name="model_col_g25" class="model_collision" mesh="model_col_25"/>
+      <geom name="model_col_g26" class="model_collision" mesh="model_col_26"/>
+      <geom name="model_col_g27" class="model_collision" mesh="model_col_27"/>
+      <geom name="model_col_g28" class="model_collision" mesh="model_col_28"/>
+      <geom name="model_col_g29" class="model_collision" mesh="model_col_29"/>
+      <geom name="model_col_g30" class="model_collision" mesh="model_col_30"/>
+      <geom name="model_col_g31" class="model_collision" mesh="model_col_31"/>
+    </body>
+  </worldbody>
+</mujoco>

@@ -17,6 +17,10 @@
     <mesh class="2f85" file="../robotiq_2f85/assets/pad.stl"/>
     <mesh class="2f85" file="../robotiq_2f85/assets/silicone_pad.stl"/>
     <mesh class="2f85" file="../robotiq_2f85/assets/spring_link.stl"/>
+
+
+    <!-- <texture name="cloth_texture" type="2d" file="/home/wuc120/benchmarking_cloth/bcm/assets/textures/chequered_rag.png" />
+    <material name="cloth_material" texture="cloth_texture" /> -->
   </asset>
 
   <default>
@@ -44,11 +48,11 @@
       <default class="collision2">
         <geom type="mesh" group="3"/>
         <default class="pad_box1">
-          <geom mass="0" type="box" pos="0 -0.0026 0.028125" size="0.011 0.004 0.009375" friction="0.7"
+          <geom mass="0" type="box" pos="0 -0.0026 0.028125" size="0.011 0.004 0.009375" friction="7" 
             solimp="0.95 0.99 0.001" solref="0.004 1" priority="1" rgba="0.55 0.55 0.55 1"/>
         </default>
         <default class="pad_box2">
-          <geom mass="0" type="box" pos="0 -0.0026 0.009375" size="0.011 0.004 0.009375" friction="0.6"
+          <geom mass="0" type="box" pos="0 -0.0026 0.009375" size="0.011 0.004 0.009375" friction="6"
             solimp="0.95 0.99 0.001" solref="0.004 1" priority="1" rgba="0.45 0.45 0.45 1"/>
         </default>
       </default>
@@ -103,6 +107,17 @@
                 <geom class="visual2" mesh="silicone_pad" material="black"/>
                 <site name="right_pad"/>
               </body>
+
+              <!-- 把布料直接掛在 right_pad 底下 -->
+              <!-- <flexcomp name="cloth" type="mesh" radius="0.005" dim="2" pos="0 -0.0189 0.01352" mass="2.552954456795875" material="cloth_material" file="/home/wuc120/benchmarking_cloth/bcm/assets/meshes/ragwy.obj"> -->
+                <!-- <edge equality="true" damping="1.0" /> -->
+                <!-- <contact solref="0.003" /> -->
+                      <!-- <contact solref="0.003" /> -->
+                      <!-- <contact contype="2" conaffinity="2" solref="0.003"/> -->
+                      <!-- <contact condim="4" friction="0.12 0.001 0.0001" solref="0.01 1" solimp="0.9 0.98 0.01"/> -->
+                      <!-- <elasticity  poisson="0.4032740512363587" thickness="0.0005" young="85242.202369946481"/> -->
+                <!-- <pin id="374"      /> -->
+              <!-- </flexcomp> -->
             </body>
           </body>
         </body>

@@ -14,6 +14,7 @@ from ..arm.motion_planning import LinePositionParameter, OneAttitudeParameter, C
     QuinticVelocityParameter, TrajectoryParameter, TrajectoryPlanner
 from ..utils import mj
 
+import imageio.v2 as imageio  # 寫 PNG 用，RGB 不會被換成 BGR
 
 class PickAndPlaceEnv(Env):
     _name = "pick_and_place"
@@ -40,7 +41,7 @@ class PickAndPlaceEnv(Env):
         self._latest_action = None
         self._render_cache = None
 
-        scene_path = Path(__file__).parent.parent / Path("assets/scenes/scene.xml")
+        scene_path = Path(__file__).parent.parent / Path("assets/scenes/testscene.xml")
         self._mj_model: mujoco.MjModel = mujoco.MjModel.from_xml_path(os.fspath(scene_path))
         self._mj_data: mujoco.MjData = mujoco.MjData(self._mj_model)
         mujoco.mj_forward(self._mj_model, self._mj_data)
@@ -59,6 +60,126 @@ class PickAndPlaceEnv(Env):
 
         self._step_num = 0
         self._obj_t = np.zeros(3)
+         # === 放置成功判斷參數（可依需求調整） ===
+        # 這裡沿用 run() 裡的目標放置點 t6 = [1.4, 0.15, 0.80]
+        self._place_target_xy = np.array([1.4, 0.15], dtype=float)
+        self._place_target_z  = 0.80
+        self._place_tol_xy    = 0.1   # XY 半徑（3cm）
+        self._place_tol_z     = 0.1   # Z 容差（±3cm）
+        self._gripper_open_thresh = 0.01  # 夾爪打開閾值（依模型調）
+        self._ee_box_sep_thresh  = 0.01   # 末端與盒子距離 > 5cm 視為放開
+
+        # === 新增：觀察影像輸出路徑 ===
+        self._observe_dir = Path("/home/wuc120/imitation_learning_lerobot/outputs/observe")
+        self._observe_dir.mkdir(parents=True, exist_ok=True)
+
+        self._initialized = False  # 新增：是否已完成第一次 reset
+    def _soft_reset_objects_and_time(self):
+        """
+        軟重置：保留上一步的機械臂/夾爪狀態，重新擺放 Box，清時間與步數。
+        """
+
+        # === 取用快照（若第一次沒有快照，就用當前值備援） ===
+        # if self._last_robot_q is None:
+        #     self._last_robot_q = np.array([
+        #         mj.get_joint_q(self._mj_model, self._mj_data, jn)[0]
+        #         for jn in self._ur5e_joint_names
+        #     ], dtype=float)
+        # if self._last_ctrl is None:
+        #     self._last_ctrl = self._mj_data.ctrl.copy()
+
+        # === 先 reset Data（清掉時間、暫態），但我們會立刻把手臂/夾爪狀態寫回 ===
+        mujoco.mj_resetData(self._mj_model, self._mj_data)
+
+        # === 重擺 Box（或你要 reset 的其他物件） ===
+        px = np.random.uniform(low=1.25, high=1.45)
+        py = np.random.uniform(low=0.3,  high=0.6)
+        pz = 0.77
+        T_Box = sm.SE3.Trans(px, py, pz)
+        mj.set_free_joint_pose(self._mj_model, self._mj_data, "Box", T_Box)
+
+        # === 把機械臂關節寫回 MuJoCo & 你的運動學模型 ===
+        # 1) 高階運動學模型
+        self._robot.set_joint(self._robot_q)
+        # 2) MuJoCo qpos
+        for i, jn in enumerate(self._ur5e_joint_names):
+            mj.set_joint_q(self._mj_model, self._mj_data, jn, float(self._robot_q[i]))
+
+        # # === 還原夾爪控制（以及其他 actuator ctrl，如需） ===
+        # if self._last_ctrl is not None and len(self._last_ctrl) == len(self._mj_data.ctrl):
+        #     
+        # [:] = self._last_ctrl
+
+        # === 更新全場景 ===
+        mujoco.mj_forward(self._mj_model, self._mj_data)
+
+        # === 更新快取/內部紀錄 ===
+        self._obj_t = mj.get_body_pose(self._mj_model, self._mj_data, "Box").t
+        self._latest_action = None
+        self._render_cache = None
+
+        # 建議：不用每次重建 renderer/viewer，效能較佳；真的需要才重建
+        if self._mj_renderer is None:
+            try:
+                self._mj_renderer.close()
+            except AttributeError:
+                pass
+            self._mj_renderer = None
+            self._mj_renderer = mujoco.renderer.Renderer(self._mj_model, height=self._height, width=self._width)
+
+        if self._render_mode == "human" and self._mj_viewer is None:
+            self._mj_viewer = mujoco.viewer.launch_passive(self._mj_model, self._mj_data)
+
+        # 清時間與步數（mj_resetData 已把 data.time 清 0；這裡清你的計數器）
+        self._step_num = 0
+
+        # 同步運動學端末端位姿（含工具偏移）
+        # self._robot_T = self._robot.fkine(self._robot_q)
+        # self._T0 = self._robot_T.copy()
+
+        observation = self._get_observation()
+        info = {"is_success": False}
+        return observation, info
+
+    # def _soft_reset_objects_and_time(self):
+
+    #     mujoco.mj_resetData(self._mj_model, self._mj_data)
+        
+    #     mujoco.mj_forward(self._mj_model, self._mj_data)
+        
+        
+        
+    #     """保留機械臂 joint/pose，只重新擺放 Box、清時間與步數。"""
+    #     # 隨機（或依你原本邏輯）擺放 Box
+    #     px = np.random.uniform(low=1.25, high=1.45)
+    #     py = np.random.uniform(low=0.3,  high=0.6)
+    #     pz = 0.77
+    #     T_Box = sm.SE3.Trans(px, py, pz)
+    #     mj.set_free_joint_pose(self._mj_model, self._mj_data, "Box", T_Box)
+    #     mujoco.mj_forward(self._mj_model, self._mj_data)
+    #     self._obj_t = mj.get_body_pose(self._mj_model, self._mj_data, "Box").t
+    #     self._latest_action = None
+    #     self._render_cache = None
+
+    #     if self._mj_renderer is None:   
+    #         try :
+    #             self._mj_renderer.close()
+    #         except AttributeError:
+    #             pass
+    #         self._mj_renderer = None
+
+    #     self._mj_renderer = mujoco.renderer.Renderer(self._mj_model, height=self._height, width=self._width)
+    #     if self._render_mode == "human"and self._mj_viewer is None:
+    #         self._mj_viewer = mujoco.viewer.launch_passive(self._mj_model, self._mj_data)
+
+        
+    #     self._step_num = 0
+        
+    #     observation = self._get_observation()
+        
+    #     info = {"is_success": False}
+    #     print(f"render_mode={self._render_mode}, viewer={self._mj_viewer}")
+    #     return observation, info
 
     def reset(self):
 
@@ -81,21 +202,53 @@ class PickAndPlaceEnv(Env):
         self._robot_T = self._robot.fkine(self._robot_q)
         self._T0 = self._robot_T.copy()
 
-        px = np.random.uniform(low=1.4, high=1.5)
-        py = np.random.uniform(low=0.3, high=0.9)
+        # pos = np.array([[1.4, 0.5], [1.4, 0.55],[1.3, 0.45], [1.3, 0.35]],dtype=float)
+        # idx = np.random.randint(len(pos))
+        # px, py = pos[idx]
+
+        # pos = np.array([[1.4, 0.5], [1.3, 0.35]], dtype=float)
+        # if not hasattr(self, "_pos_i"):
+        #     self._pos_i = 0
+        # px, py = pos[self._pos_i % len(pos)]
+        # self._pos_i += 1
+
+        # print(px, py)
+        px = np.random.uniform(low=1.25, high=1.45)
+        py = np.random.uniform(low=0.3, high=0.6)
+
+        # 固定位置
+        # px =  1.45
+        # py = 0.9
+        # px = 1.4
+        # py = 0.55
+        # px =  1.45
+        # py = 0.45
         pz = 0.77
         T_Box = sm.SE3.Trans(px, py, pz)
         mj.set_free_joint_pose(self._mj_model, self._mj_data, "Box", T_Box)
         mujoco.mj_forward(self._mj_model, self._mj_data)
         self._obj_t = mj.get_body_pose(self._mj_model, self._mj_data, "Box").t
+        self._latest_action = None
+        self._render_cache = None
+
+        if self._mj_renderer is None:   
+            try :
+                self._mj_renderer.close()
+            except AttributeError:
+                pass
+            self._mj_renderer = None
 
         self._mj_renderer = mujoco.renderer.Renderer(self._mj_model, height=self._height, width=self._width)
-        if self._render_mode == "human":
+        if self._render_mode == "human"and self._mj_viewer is None:
             self._mj_viewer = mujoco.viewer.launch_passive(self._mj_model, self._mj_data)
 
+        
         self._step_num = 0
+        
         observation = self._get_observation()
+        
         info = {"is_success": False}
+        print(f"render_mode={self._render_mode}, viewer={self._mj_viewer}")
         return observation, info
 
     def step(self, action):
@@ -113,26 +266,43 @@ class PickAndPlaceEnv(Env):
 
         observation = self._get_observation()
         reward = 0.0
-        terminated = False
+        # terminated = False
 
+        # self._step_num += 1
+
+        # truncated = False
+        # if self._step_num > 10000:
+        #     truncated = True
+
+        # info = {"is_success": terminated}
+        # return observation, reward, terminated, truncated, info
+        # === 成功/終止判斷 ===
+        success = self._is_success()
+        # terminated = bool(success)  # 成功就終止（若不想提前結束，可改成 False）
+        terminated = False
         self._step_num += 1
 
         truncated = False
         if self._step_num > 10000:
             truncated = True
 
-        info = {"is_success": terminated}
+        info = {"is_success": success}
         return observation, reward, terminated, truncated, info
 
     def render(self):
         if self._render_mode == "human":
             self._mj_viewer.sync()
+            # self._mj_viewer.loop_once()
 
     def close(self):
         if self._mj_viewer is not None:
             self._mj_viewer.close()
         if self._mj_renderer is not None:
-            self._mj_renderer.close()
+            # self._mj_renderer.close()
+            try:
+                self._mj_renderer.close()
+            except AttributeError:
+                pass
 
     def seed(self, seed=None):
         pass
@@ -154,6 +324,19 @@ class PickAndPlaceEnv(Env):
         image_hand = self._mj_renderer.render()
         # image_hand = np.moveaxis(image_hand, -1, 0)
 
+        # === 新增：把影像存到 observe 資料夾 ===
+        # 檔名帶 step 與時間，避免覆蓋；也方便逐步檢查
+        # step_str = f"{self._step_num:06d}"
+        # ts = time.time()
+        # # 確保 uint8 / RGB
+        # if image_top.dtype != np.uint8:
+        #     image_top = np.clip(image_top, 0, 255).astype(np.uint8)
+        # if image_hand.dtype != np.uint8:
+        #     image_hand = np.clip(image_hand, 0, 255).astype(np.uint8)
+        # # 寫檔
+        # imageio.imwrite(self._observe_dir / f"{step_str}_top_{ts:.3f}.png", image_top)
+        # imageio.imwrite(self._observe_dir / f"{step_str}_hand_{ts:.3f}.png", image_hand)
+
         obs = {
             'pixels': {
                 'top': image_top,
@@ -162,10 +345,51 @@ class PickAndPlaceEnv(Env):
             'agent_pos': agent_pos
         }
         self._render_cache = image_top
+        # 額外補一個 viewer.sync() 確保畫面真的刷新
+        # if self._render_mode == "human" :#and self._mj_viewer is not None:
+        #     self._mj_viewer.sync()
         return obs
+    # 取得 Box 位置（世界座標）
+    def _get_box_pos(self) -> np.ndarray:
+        return mj.get_body_pose(self._mj_model, self._mj_data, "Box").t.copy()
 
-    def run(self):
-        observation, info = self.reset()
+    # 夾爪開口（left/right pad 的距離）
+    def _get_gripper_opening(self) -> float:
+        return float(np.linalg.norm(
+            self._mj_data.site('left_pad').xpos - self._mj_data.site('right_pad').xpos
+        ))
+
+    # 末端 TCP（工具座標）位置
+    def _get_ee_pos(self) -> np.ndarray:
+        return self._robot_T.t.copy()
+
+    # Box 是否在放置區域內
+    def _in_place_zone(self, box_t: np.ndarray) -> bool:
+        xy_ok = np.linalg.norm(box_t[:2] - self._place_target_xy) <= self._place_tol_xy
+        z_ok  = (abs(box_t[2] - self._place_target_z) <= self._place_tol_z)
+        return bool(xy_ok and z_ok)
+
+    # 已釋放（夾爪打開且與 Box 分離）
+    def _released(self, box_t: np.ndarray) -> bool:
+        opening_ok = self._get_gripper_opening() >= self._gripper_open_thresh
+        ee_sep_ok  = np.linalg.norm(self._get_ee_pos() - box_t) >= self._ee_box_sep_thresh
+        return bool(opening_ok and ee_sep_ok)
+
+    # 成功條件：Box 在放置區域內 且 已釋放
+    def _is_success(self) -> bool:
+        box_t = self._get_box_pos()
+        return self._in_place_zone(box_t) and self._released(box_t)
+
+    def run(self, keep_state: bool = False):
+
+
+        if (not self._initialized) or (not keep_state):
+            observation, info = self.reset()
+            self._initialized = True
+        else:
+            observation, info = self._soft_reset_objects_and_time()
+
+        # observation, info = self.reset()
 
         time0 = 0.04
         T0 = self._robot.get_cartesian()
@@ -265,5 +489,6 @@ class PickAndPlaceEnv(Env):
 
 
 if __name__ == '__main__':
-    env = PickAndPlaceEnv(render_mode="human")
+    # env = PickAndPlaceEnv(render_mode="human")
+    env = PickAndPlaceEnv()
     env_data = env.run()

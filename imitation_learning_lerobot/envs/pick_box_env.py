@@ -44,7 +44,7 @@ class PickBoxEnv(Env):
         self._latest_action = None
         self._render_cache = None
 
-        scene_path = Path(__file__).parent.parent / Path("assets/scenes/pick_box_scene.xml")
+        scene_path = Path(__file__).parent.parent / Path("assets/scenes/pick_box_scene_copy.xml")
         self._mj_model: mujoco.MjModel = mujoco.MjModel.from_xml_path(os.fspath(scene_path))
         self._mj_data: mujoco.MjData = mujoco.MjData(self._mj_model)
         mujoco.mj_forward(self._mj_model, self._mj_data)
@@ -61,6 +61,8 @@ class PickBoxEnv(Env):
 
         self._step_num = 0
         self._obj_t = np.zeros(3)
+
+        self._cloth_attached = False
 
     def reset(self):
 
@@ -83,35 +85,46 @@ class PickBoxEnv(Env):
         self._robot_T = self._robot.fkine(self._robot_q)
         self._T0 = self._robot_T.copy()
 
+
+        # --- 夾爪已 attach 完成到 UR 法蘭 ---
+        # right_pad 的當下世界位姿
+        T_right_pad = mj.get_body_pose(self._mj_model, self._mj_data, "right_pad")
+
+        # 一行搞定：把 wy_free 對齊 right_pad，並初始化/啟用 weld "grasp_right"
+        mj.attach(self._mj_model, self._mj_data, "grasp_right", "wy_free", T_right_pad)
+
+        mujoco.mj_forward(self._mj_model, self._mj_data)
+        # ---
         px_box = np.random.uniform(low=1.4, high=1.5)
         py_box = np.random.uniform(low=0.3, high=0.9)
         pz_box = 0.77
         T_Box = sm.SE3.Trans(px_box, py_box, pz_box)
         mj.set_free_joint_pose(self._mj_model, self._mj_data, "Box", T_Box)
         mujoco.mj_forward(self._mj_model, self._mj_data)
+        
 
-        px_container = np.random.uniform(low=1.4, high=1.5)
-        py_container = np.random.uniform(low=0.3, high=0.9)
-        pz_container = 0.77
-        while np.linalg.norm(
-                np.array([px_box, py_box, pz_box] - np.array([px_container, py_container, pz_container]))) < 0.2:
-            px_container = np.random.uniform(low=1.4, high=1.5)
-            py_container = np.random.uniform(low=0.3, high=0.9)
-            pz_container = 0.77
-        T_container = sm.SE3.Trans(px_container, py_container, pz_container)
+        # px_container = np.random.uniform(low=1.4, high=1.5)
+        # py_container = np.random.uniform(low=0.3, high=0.9)
+        # pz_container = 0.77
+        # while np.linalg.norm(
+        #         np.array([px_box, py_box, pz_box] - np.array([px_container, py_container, pz_container]))) < 0.2:
+        #     px_container = np.random.uniform(low=1.4, high=1.5)
+        #     py_container = np.random.uniform(low=0.3, high=0.9)
+        #     pz_container = 0.77
+        # T_container = sm.SE3.Trans(px_container, py_container, pz_container)
 
-        container_eq_data = np.zeros(11)
-        container_eq_data[3:6] = T_container.t
-        container_eq_data[6:10] = T_container.UnitQuaternion()
-        container_eq_data[-1] = 1.0
-        mj.attach(self._mj_model, self._mj_data, "container_attach",
-                  "container_free_joint", T_container, eq_data=container_eq_data)
-        mujoco.mj_forward(self._mj_model, self._mj_data)
+        # container_eq_data = np.zeros(11)
+        # container_eq_data[3:6] = T_container.t
+        # container_eq_data[6:10] = T_container.UnitQuaternion()
+        # container_eq_data[-1] = 1.0
+        # mj.attach(self._mj_model, self._mj_data, "container_attach",
+        #           "container_free_joint", T_container, eq_data=container_eq_data)
+        # mujoco.mj_forward(self._mj_model, self._mj_data)
 
         self._mj_renderer = mujoco.renderer.Renderer(self._mj_model, height=self._height, width=self._width)
         if self._render_mode == "human":
-            self._mj_viewer = mujoco.viewer.launch_passive(self._mj_model, self._mj_data,
-                                                           show_left_ui=False, show_right_ui=False)
+            self._mj_viewer = mujoco.viewer.launch_passive(self._mj_model, self._mj_data)#,
+                                                           #show_left_ui=False, show_right_ui=False)
 
         self._step_num = 0
         observation = self._get_observation()
@@ -130,6 +143,27 @@ class PickBoxEnv(Env):
             action[3] = np.clip(action[3], 0, 1)
             self._mj_data.ctrl[6] = action[3] * 255.0
         mujoco.mj_step(self._mj_model, self._mj_data, n_steps)
+
+        # 靠近就連接
+        # 3) 若尚未連接，檢查距離是否達標
+        # if not self._cloth_attached:
+        #     pad_pos = self._mj_data.site('right_pad').xpos
+        #     cloth_pos = self._mj_data.site('cloth_anchor').xpos
+        #     dist = np.linalg.norm(pad_pos - cloth_pos)
+
+        #     # 門檻你可以依尺寸調
+        #     if dist < 0.06:
+        #         # (A) 方式一：對齊並啟用 weld（推薦）
+        #         T_right_pad = mj.get_body_pose(self._mj_model, self._mj_data, "right_pad")
+        #         # 這行會：把 wy_free 對齊到 right_pad，並把名為 grasp_right 的 weld 啟用
+        #         mj.attach(self._mj_model, self._mj_data, "grasp_right", "wy_free", T_right_pad)
+
+        #         # (B) 方式二：不對齊，只是打開 weld（若你不想瞬移 wy）
+        #         # eq_id = mujoco.mj_name2id(self._mj_model, mujoco.mjtObj.mjOBJ_EQUALITY, "grasp_right")
+        #         # self._mj_data.eq_active[eq_id] = 1
+
+        #         mujoco.mj_forward(self._mj_model, self._mj_data)
+        #         self._cloth_attached = True
 
         observation = self._get_observation()
         reward = 0.0
@@ -152,7 +186,11 @@ class PickBoxEnv(Env):
         if self._mj_viewer is not None:
             self._mj_viewer.close()
         if self._mj_renderer is not None:
-            self._mj_renderer.close()
+            # self._mj_renderer.close()
+            try:
+                self._mj_renderer.close()
+            except AttributeError:
+                pass
 
     def seed(self, seed=None):
         pass

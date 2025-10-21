@@ -84,13 +84,18 @@ def attach(model: mj.MjModel, data: mj.MjData, equality_name: str, free_joint_na
             f"Equality constraint with name '{equality_name}' not found in the model."
         )
 
-    data.eq_active[eq_id] = 0
+    # model.eq_active[eq_id] = 0
+    model.eq_active0[eq_id] = 0 #mujoco 3
 
     set_free_joint_pose(model, data, free_joint_name, T)
-
+    print("eq_data shape:", eq_data.shape)
+    print("target shape:", model.equality(equality_name).data.shape)
     model.equality(equality_name).data = eq_data
 
     model.equality(equality_name).solimp = eq_solimp
     model.equality(equality_name).solref = eq_solref
 
-    data.eq_active[eq_id] = 1
+    # model.eq_active[eq_id] = 1
+
+    model.eq_active0[eq_id] = 1 #mujoco 3
+
