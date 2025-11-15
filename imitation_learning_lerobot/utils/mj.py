@@ -72,30 +72,64 @@ def set_free_joint_pose(model: mj.MjModel, data: mj.MjData, joint_name: Union[in
     set_joint_q(model, data, joint_name, T_new)
 
 
-def attach(model: mj.MjModel, data: mj.MjData, equality_name: str, free_joint_name: str, T: sm.SE3,
-           eq_data=np.array([0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0]),
-           eq_solimp: np.ndarray = np.array([[0.99, 0.99, 0.001, 0.5, 1]]),
-           eq_solref: np.ndarray = np.array([0.0001, 1])
-           ) -> None:
+# def attach(model: mj.MjModel, data: mj.MjData, equality_name: str, free_joint_name: str, T: sm.SE3,
+#            eq_data=np.array([0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0]),
+#            eq_solimp: np.ndarray = np.array([[0.99, 0.99, 0.001, 0.5, 1]]),
+#            eq_solref: np.ndarray = np.array([0.0001, 1])
+#            ) -> None:
+#     eq_id = mj.mj_name2id(model, mj.mjtObj.mjOBJ_EQUALITY, equality_name)
+
+#     if eq_id is None:
+#         raise ValueError(
+#             f"Equality constraint with name '{equality_name}' not found in the model."
+#         )
+
+#     # model.eq_active[eq_id] = 0
+#     model.eq_active0[eq_id] = 0 #mujoco 3
+
+#     set_free_joint_pose(model, data, free_joint_name, T)
+#     print("eq_data shape:", eq_data.shape)
+#     print("target shape:", model.equality(equality_name).data.shape)
+#     model.equality(equality_name).data = eq_data
+
+#     model.equality(equality_name).solimp = eq_solimp
+#     model.equality(equality_name).solref = eq_solref
+
+#     # model.eq_active[eq_id] = 1
+
+#     model.eq_active0[eq_id] = 1 #mujoco 3
+
+def attach(
+    model: mj.MjModel,
+    data: mj.MjData,
+    equality_name: str,
+    free_joint_name: Optional[Union[int, str]] = None,   # ← 允許 None
+    T: Optional[sm.SE3] = None,                           # ← 允許 None
+    eq_data=np.array([0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0]),
+    eq_solimp: np.ndarray = np.array([0.99, 0.99, 0.001, 0.5, 1.0]),
+    eq_solref: np.ndarray = np.array([0.0001, 1.0]),
+) -> None:
     eq_id = mj.mj_name2id(model, mj.mjtObj.mjOBJ_EQUALITY, equality_name)
+    if eq_id == -1:
+        raise ValueError(f"Equality constraint '{equality_name}' not found.")
 
-    if eq_id is None:
-        raise ValueError(
-            f"Equality constraint with name '{equality_name}' not found in the model."
-        )
+    # 先確保關閉（MuJoCo 3 用 eq_active0）
+    model.eq_active0[eq_id] = 0
 
-    # model.eq_active[eq_id] = 0
-    model.eq_active0[eq_id] = 0 #mujoco 3
+    # 只有在「真的要用 free joint 對齊」時才設定它
+    if free_joint_name is not None:
+        if T is None:
+            raise ValueError("free_joint_name 已提供，但 T 是 None。若要對齊 free joint，請提供 T。")
+        set_free_joint_pose(model, data, free_joint_name, T)
 
-    set_free_joint_pose(model, data, free_joint_name, T)
-    print("eq_data shape:", eq_data.shape)
-    print("target shape:", model.equality(equality_name).data.shape)
+    # 保險：把輸入 reshape 成模型期望的形狀
+    target_shape = model.equality(equality_name).data.shape
+    eq_data = np.asarray(eq_data, dtype=float).reshape(target_shape)
     model.equality(equality_name).data = eq_data
 
-    model.equality(equality_name).solimp = eq_solimp
-    model.equality(equality_name).solref = eq_solref
+    # MuJoCo 期望 1D 長度 5 與 2 的向量
+    model.equality(equality_name).solimp = np.asarray(eq_solimp, dtype=float).reshape(5)
+    model.equality(equality_name).solref = np.asarray(eq_solref, dtype=float).reshape(2)
 
-    # model.eq_active[eq_id] = 1
-
-    model.eq_active0[eq_id] = 1 #mujoco 3
-
+    # 啟用
+    model.eq_active0[eq_id] = 1

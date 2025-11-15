@@ -1,0 +1,53 @@
+<mujoco>
+	<option timestep="0.01" integrator="implicitfast" viscosity="0.3" solver="CG" tolerance="1e-6">
+		<flag energy="enable" />
+	</option>
+
+    <visual>
+        <headlight ambient="0.4 0.4 0.4" diffuse="0.6 0.6 0.6" specular="0.2 0.2 0.2" />
+    </visual>
+    <asset>
+        <texture name="cloth_texture" type="2d" file="/home/wuc120/imitation_learning_lerobot/imitation_learning_lerobot/textures/chequered_rag.png" />
+        <material name="cloth_material" texture="cloth_texture" />
+    </asset>
+    <worldbody>
+        <!-- 固定的三角 -->
+        <body mocap="true" name="pin_B_mocap" pos="1.57 0.45 0.75"/>
+
+        <body mocap="true" name="pin_C_mocap" pos="0.97 1.05 0.75"/>
+        
+        <body mocap="true" name="pin_D_mocap" pos="1.77 1.05 0.75"/>
+           
+        <!-- <body name="wy"  pos="1.27 0.75 0.75" euler="0 3.1415 3.1415"  > -->
+        <body name="wy"  pos="0.97 0.45 0.75"  >
+            <joint name="wy_free" type="free" />
+            <geom type="sphere" size="0.01 " rgba="1 0 0 1" contype="2" conaffinity="2" />
+            <site name="cloth_anchor" pos="0 0 0" size="0.002" rgba="0 0 1 0.2"  />
+            <!-- <flexcomp name="cloth" type="mesh" radius="0.005" dim="2" pos="0 0 0" mass="2.552954456795875" material="cloth_material" file="/home/wuc120/benchmarking_cloth/bcm/assets/meshes/towelwy.obj"> -->
+            
+        </body>
+        <flexcomp name="cloth" type="mesh" radius="0.005" dim="2" pos="0.97 0.45 0.75" mass="0.5" material="cloth_material" file="/home/wuc120/benchmarking_cloth/bcm/assets/meshes/towelwy.obj" scale ="0.6 0.6 0.6">
+                <edge equality="true" damping="1.0" />
+                <!-- <contact solref="0.003" /> -->
+                <contact selfcollide="none" internal="false" contype="2" conaffinity="2"  condim="3" friction="1.2 0.01 0.001" solref="0.02 1" solimp="0.90 0.99 0.003"/>
+                <!-- <contact contype="2" conaffinity="2" condim="4" friction="1.2 0.01 0.001" solref="0.01 1" solimp="0.9 0.98 0.01" /> -->
+                <!-- <contact condim="4" friction="1.2 0.01 0.001" solref="0.01 1" solimp="0.9 0.98 0.01"/> -->
+                <elasticity  poisson="0.4032740512363587" thickness="0.0005" young="85242.02369946481"/>
+                <!-- <pin id="121" /> -->
+                <!-- <pin id="0" /> -->
+                <!-- 另外三個角：pin 到上面的三個「地錨 body」 -->
+                <!-- 把 140/241/231 換成你布網格三個角的實際 vertex id（0-based） -->
+                <!-- <pin id="0 19 100 120 121 140 221 241"/> -->
+        </flexcomp>
+
+    </worldbody>
+    <!-- equality：三個角固定在世界 -->
+    <equality>
+        <!-- 將右下角、左上角、右上角固定到 mocap 錨點（不動） -->
+        
+        <!-- <weld name="pin_B" body1="pin_B_mocap" body2="cloth_19"/>
+        <weld name="pin_C" body1="pin_C_mocap" body2="cloth_110"/>
+        <weld name="pin_D" body1="pin_D_mocap" body2="cloth_120"/> -->
+
+    </equality>
+</mujoco>

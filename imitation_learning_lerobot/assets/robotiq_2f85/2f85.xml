@@ -7,7 +7,7 @@
     <material name="metal" rgba="0.58 0.58 0.58 1"/>
     <material name="silicone" rgba="0.1882 0.1882 0.1882 1"/>
     <material name="gray" rgba="0.4627 0.4627 0.4627 1"/>
-<!--    <material name="black" rgba="0.149 0.149 0.149 1"/>-->
+    <!-- <material name="black" rgba="0.149 0.149 0.149 1"/> -->
 
     <mesh class="2f85" file="../robotiq_2f85/assets/base_mount.stl"/>
     <mesh class="2f85" file="../robotiq_2f85/assets/base.stl"/>
@@ -69,7 +69,9 @@
           diaginertia="0.000260285 0.000225381 0.000152708"/>
         <geom class="visual2" mesh="base" material="black"/>
         <geom class="collision2" mesh="base"/>
-        <site name="pinch" pos="0 0 0.145" type="sphere" group="5" rgba="0.9 0.9 0.9 1" size="0.005"/>
+        <body name="pinch" pos="0 0 0.145">
+          <site name="pinch"  type="sphere" group="5" rgba="0.9 0.9 0.9 1" size="0.005"/>
+        </body>  
         <!-- Right-hand side 4-bar linkage -->
         <body name="right_driver" pos="0 0.0306011 0.054904">
           <inertial mass="0.00899563" pos="2.96931e-12 0.0177547 0.00107314" quat="0.681301 0.732003 0 0"
@@ -105,8 +107,14 @@
               <geom class="visual2" mesh="pad"/>
               <body name="right_silicone_pad">
                 <geom class="visual2" mesh="silicone_pad" material="black"/>
+                <!-- <site name="right_pad"/> -->
                 <site name="right_pad"/>
+                <!-- <site name="right_pad_site" pos="0 -0.0026 0.0375" size="0.002" /> -->
               </body>
+              <!-- 在 right_pad 裡面加一個固定子 body，位置放在指尖接觸面中心 -->
+              <!-- <body name="right_anchor" pos="0 -0.0026 0.0375" quat="1 0 0 0">
+                <site name="right_anchor_site" size="0.002" rgba="1 0 0 0.3"/>
+              </body> -->
 
               <!-- 把布料直接掛在 right_pad 底下 -->
               <!-- <flexcomp name="cloth" type="mesh" radius="0.005" dim="2" pos="0 -0.0189 0.01352" mass="2.552954456795875" material="cloth_material" file="/home/wuc120/benchmarking_cloth/bcm/assets/meshes/ragwy.obj"> -->

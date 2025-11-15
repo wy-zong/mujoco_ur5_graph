@@ -1,1 +1,2 @@
 from .pick_box_keyboard_handler import PickBoxKeyboardHandler
+from .grasp_cloth_keyboard_handler import GraspClothKeyboardHandler

@@ -326,16 +326,16 @@ class PickAndPlaceEnv(Env):
 
         # === 新增：把影像存到 observe 資料夾 ===
         # 檔名帶 step 與時間，避免覆蓋；也方便逐步檢查
-        # step_str = f"{self._step_num:06d}"
-        # ts = time.time()
-        # # 確保 uint8 / RGB
-        # if image_top.dtype != np.uint8:
-        #     image_top = np.clip(image_top, 0, 255).astype(np.uint8)
-        # if image_hand.dtype != np.uint8:
-        #     image_hand = np.clip(image_hand, 0, 255).astype(np.uint8)
-        # # 寫檔
-        # imageio.imwrite(self._observe_dir / f"{step_str}_top_{ts:.3f}.png", image_top)
-        # imageio.imwrite(self._observe_dir / f"{step_str}_hand_{ts:.3f}.png", image_hand)
+        step_str = f"{self._step_num:06d}"
+        ts = time.time()
+        # 確保 uint8 / RGB
+        if image_top.dtype != np.uint8:
+            image_top = np.clip(image_top, 0, 255).astype(np.uint8)
+        if image_hand.dtype != np.uint8:
+            image_hand = np.clip(image_hand, 0, 255).astype(np.uint8)
+        # 寫檔
+        imageio.imwrite(self._observe_dir / f"{step_str}_top_{ts:.3f}.png", image_top)
+        imageio.imwrite(self._observe_dir / f"{step_str}_hand_{ts:.3f}.png", image_hand)
 
         obs = {
             'pixels': {

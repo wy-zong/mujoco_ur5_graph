@@ -19,6 +19,9 @@ from imitation_learning_lerobot.envs import Env, EnvFactory
 
 import numpy as np
 
+# 放在最頂端、任何 @parser.wrap() 與 main() 呼叫之前
+import imitation_learning_lerobot.configs.grasp_cloth_env_config
+
 
 @parser.wrap()
 def main(cfg: EvalPipelineConfig):

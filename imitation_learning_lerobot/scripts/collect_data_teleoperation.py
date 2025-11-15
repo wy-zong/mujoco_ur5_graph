@@ -114,15 +114,29 @@ def write_to_h5(env_cls: Type[Env], data_dict: dict):
             root[name][...] = array
 
 
+# def main():
+#     args = parse_args()
+
+#     env_cls = EnvFactory.get_strategies(args.env_type)
+
+#     data_dict = teleoperate(env_cls, args.handler_type)
+
+#     write_to_h5(env_cls, data_dict)
+
+# 在你現在的 main() 同檔加入
+from imitation_learning_lerobot.envs.scripted_flow import scripted_pick_and_place  # ← 就是上面那個檔
+
 def main():
     args = parse_args()
-
     env_cls = EnvFactory.get_strategies(args.env_type)
 
+    if args.handler_type.lower() in ["script", "scripted", "auto"]:
+        scripted_pick_and_place(env_cls)
+        return
+
+    # 原本的手動/鍵盤遙操作路徑
     data_dict = teleoperate(env_cls, args.handler_type)
-
     write_to_h5(env_cls, data_dict)
-
 
 if __name__ == '__main__':
     main()

@@ -1,26 +1,16 @@
 <mujoco model="scene">
 
     <compiler angle="radian" autolimits="true" />
-    <option timestep="0.02" integrator="implicitfast" solver="PGS"
+    <option timestep="0.02" integrator="implicitfast" solver="CG"
             cone="elliptic" >
 		<flag energy="enable" />	
 		<!--		 <flag multiccd="enable"/>-->
     </option>
-	<include file="/home/wuc120/benchmarking_cloth/bcm/assets/mujoco3_cloth.xml" />
+	<include file="/home/wuc120/imitation_learning_lerobot/imitation_learning_lerobot/assets/scenes/mujoco3_cloth.xml" />
+	<!-- <include file="/home/wuc120/benchmarking_cloth/bcm/assets/衣服.xml" /> -->
     <include file="../universal_robots_ur5e/ur5e.xml" />
     <include file="../robotiq_2f85/2f85.xml" />
-	<!-- <include file="/home/wuc120/imitation_learning_lerobot/imitation_learning_lerobot/assets/Cole_Hardware_Hammer_Black/hummer_dm.xml" /> -->
-	<!-- <include file="/home/wuc120/imitation_learning_lerobot/imitation_learning_lerobot/assets/Craftsman_Grip_Screwdriver_Phillips_Cushion/screwdriver.xml" /> -->
-	<!-- <include file="../props/container/container.xml" />
-	<include file="../scenes/flag.xml"/> -->
-	<!-- <include file="../scenes/ring2.xml"/> -->
-	<!-- <include file="../scenes/softbox.xml"/> -->
-	<!-- <include file="../scenes/cloth.xml"/> -->
-	
-	
-
 	<size memory="512000000" />
-
     <statistic center="0.3 0 0.3" extent="0.8" meansize="0.08"  />
 
     <visual>
@@ -38,7 +28,7 @@
                   reflectance="0.2" />
 
         <!--meshes-->
-        <mesh name ="table" file="../table/sigmund_table.stl" scale= "1 1 1"/>
+        <mesh name ="table" file="../table/sigmund_table.stl" scale= "-1.5 2 1"/>
     </asset>
 
     <worldbody>
@@ -65,7 +55,8 @@
 
 		<!--Zones-->
 		<body name="zone_pickup" pos="1.4 0.6 0.73" quat="1 0 0 0">
-			<geom name="zone_pickup" type="box" size="0.2 0.6 0.01" rgba="0 1 0 0.1" contype="0" conaffinity="0"/>
+			<!-- <geom name="zone_pickup" type="box" size="0.2 0.6 0.01" rgba="0 1 0 0.1" contype="0" conaffinity="0"/> -->
+			<geom name="zone_pickup" type="box" size="0.6 0.9 0.01" rgba="0 1 0 0.1" friction="1.5 0.002 0.0001" />
 		</body>
 <!--		<body name="zone_drop" pos="1.4 0.15 0.73" quat="1 0 0 0">-->
 <!--			<geom name="zone_drop" type="box" size="0.2 0.15 0.01" rgba="1 0 0 0.1" contype="0" conaffinity="0"/>-->
@@ -73,14 +64,14 @@
 
         <!--table -->
 		<body name = "table1" euler="0 0 0" pos= "0.8 0 0.74" >
-		  <geom name = "table1" type="mesh" mesh="table" group="2" rgba="0.35 0.35 0.35 1" mass="0" contype="2" conaffinity="2"/>
+		  <geom name = "table1" type="mesh" mesh="table" group="2" rgba="0.35 0.35 0.35 1" mass="0" contype="2" conaffinity="2" friction="1.5 0.002 0.0001"/>
 		</body>
 		<body name = "table2" euler="0 0 0" pos= "1.6 0 0.74" >
-		  <geom name = "table2" type="mesh" mesh="table" group="2" rgba="0.35 0.35 0.35 1" mass="0" contype="2" conaffinity="2"/>
+		  <geom name = "table2" type="mesh" mesh="table" group="2" rgba="0.35 0.35 0.35 1" mass="0" contype="2" conaffinity="2" friction="1.5 0.002 0.0001"/>
 		</body>
 
 		<body name="simple_table" pos="0.8 0.6 0.69" quat="1 0 0 0">
-			<geom name="simple_table" type="box" size="0.8 0.6 0.05" rgba="0.5 0.5 0.5 0.1"/>
+			<geom name="simple_table" type="box" size="0.8 0.6 0.05" rgba="0.5 0.5 0.5 0.1" friction="1.5 0.002 0.0001"/>
 		</body>
 
 
@@ -105,17 +96,17 @@
 		<exclude body1="flange" body2="2f85_base" />
 		<exclude body1="wrist_3_link" body2="2f85_base" />
 		<exclude body1="wrist_2_link" body2="2f85_base" />
-		<exclude body1="2f85_base" body2="wy" />
+		<!-- <exclude body1="2f85_base" body2="wy" /> -->
 	</contact>
 
 	<equality>
-		<weld name="attach" body1="flange" body2="2f85_base" active="false" />
+		<weld name="attach" body1="flange" body2="2f85_base" active="true" />
 		<weld name="attach_mocap" body1="mocap" body2="ur5e_base" active="false" />
 		<!-- <weld name="container_attach" body1="world" body2="container" active="true" /> -->
-
-
-		<!-- ✅ 直接把布料角點焊到右夾爪碰撞體（right_pad） -->
-		<weld name="grasp_right" body1="right_pad" body2="wy"  active="false" />
+		<weld name="grasp_right_0" body1="pinch" body2="cloth_0"  active="false" />
+		<weld name="grasp_right_1" body1="pinch" body2="cloth_19"  active="false" />
+		<weld name="grasp_right_2" body1="pinch" body2="cloth_110"  active="false" />
+		<weld name="grasp_right_3" body1="pinch" body2="cloth_120"  active="false" /> 
 	</equality>
 
 </mujoco>

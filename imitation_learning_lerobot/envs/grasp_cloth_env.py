@@ -14,13 +14,14 @@ from ..arm.motion_planning import LinePositionParameter, OneAttitudeParameter, C
     QuinticVelocityParameter, TrajectoryParameter, TrajectoryPlanner
 from ..utils import mj
 
+import imageio.v2 as imageio  # 寫 PNG 用，RGB 不會被換成 BGR
 
-class PickBoxEnv(Env):
-    _name = "pick_box"
+class GraspClothEnv(Env):
+    _name = "grasp_cloth"
     _robot_type = "UR5e"
     _height = 480
     _width = 640
-    _states = [
+    _states = [                             
         "px",
         "py",
         "pz",
@@ -68,6 +69,10 @@ class PickBoxEnv(Env):
         self._grasp_eq_idx = 0
         self._grasp_eq = self._grasp_eq_names[self._grasp_eq_idx]
 
+        # === 新增：觀察影像輸出路徑 ===
+        self._observe_dir = Path("/home/wuc120/imitation_learning_lerobot/outputs/observe")
+        self._observe_dir.mkdir(parents=True, exist_ok=True)
+
     def next_grasp_point(self):
         self._grasp_eq_idx = (self._grasp_eq_idx + 1) % len(self._grasp_eq_names)
         self._grasp_eq = self._grasp_eq_names[self._grasp_eq_idx]
@@ -98,12 +103,12 @@ class PickBoxEnv(Env):
 
         # --- 夾爪已 attach 完成到 UR 法蘭 ---
         # right_pad 的當下世界位姿
-        T_right_pad = mj.get_body_pose(self._mj_model, self._mj_data, "right_pad")
+        # T_right_pad = mj.get_body_pose(self._mj_model, self._mj_data, "right_pad")
 
-        # 一行搞定：把 wy_free 對齊 right_pad，並初始化/啟用 weld "grasp_right"
-        mj.attach(self._mj_model, self._mj_data, "grasp_right", "wy_free", T_right_pad)
+        # # 一行搞定：把 wy_free 對齊 right_pad，並初始化/啟用 weld "grasp_right"
+        # mj.attach(self._mj_model, self._mj_data, "grasp_right", "wy_free", T_right_pad)
 
-        mujoco.mj_forward(self._mj_model, self._mj_data)
+        # mujoco.mj_forward(self._mj_model, self._mj_data)
         # ---
         px_box = np.random.uniform(low=1.4, high=1.5)
         py_box = np.random.uniform(low=0.3, high=0.9)
@@ -474,6 +479,19 @@ class PickBoxEnv(Env):
         image_top = self._mj_renderer.render()
         self._mj_renderer.update_scene(self._mj_data, 1)
         image_hand = self._mj_renderer.render()
+
+        # === 新增：把影像存到 observe 資料夾 ===
+        # 檔名帶 step 與時間，避免覆蓋；也方便逐步檢查
+        step_str = f"{self._step_num:06d}"
+        ts = time.time()
+        # 確保 uint8 / RGB
+        if image_top.dtype != np.uint8:
+            image_top = np.clip(image_top, 0, 255).astype(np.uint8)
+        if image_hand.dtype != np.uint8:
+            image_hand = np.clip(image_hand, 0, 255).astype(np.uint8)
+        # 寫檔
+        imageio.imwrite(self._observe_dir / f"{step_str}_top_{ts:.3f}.png", image_top)
+        imageio.imwrite(self._observe_dir / f"{step_str}_hand_{ts:.3f}.png", image_hand)
 
         obs = {
             'pixels': {
