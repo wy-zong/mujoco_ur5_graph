@@ -30,8 +30,11 @@ class PickBoxEnv(Env):
         "top",
         "hand"
     ]
+    #ur5 xyzrpy + gripper 並留下第二隻手臂的控制空間
     _state_dim = 4
-    _action_dim = 4
+    _action_dim = 14
+    
+
 
     def __init__(self, render_mode: str = "rgb_array"):
         super().__init__()
@@ -67,6 +70,7 @@ class PickBoxEnv(Env):
         self._grasp_eq_names = ["grasp_right_0","grasp_right_1","grasp_right_2","grasp_right_3"]
         self._grasp_eq_idx = 0
         self._grasp_eq = self._grasp_eq_names[self._grasp_eq_idx]
+        self._ur5_rot_step = 0.5  # rad
 
     def next_grasp_point(self):
         self._grasp_eq_idx = (self._grasp_eq_idx + 1) % len(self._grasp_eq_names)
@@ -98,12 +102,12 @@ class PickBoxEnv(Env):
 
         # --- 夾爪已 attach 完成到 UR 法蘭 ---
         # right_pad 的當下世界位姿
-        T_right_pad = mj.get_body_pose(self._mj_model, self._mj_data, "right_pad")
+        # T_right_pad = mj.get_body_pose(self._mj_model, self._mj_data, "right_pad")
 
-        # 一行搞定：把 wy_free 對齊 right_pad，並初始化/啟用 weld "grasp_right"
-        mj.attach(self._mj_model, self._mj_data, "grasp_right", "wy_free", T_right_pad)
+        # # 一行搞定：把 wy_free 對齊 right_pad，並初始化/啟用 weld "grasp_right"
+        # mj.attach(self._mj_model, self._mj_data, "grasp_right", "wy_free", T_right_pad)
 
-        mujoco.mj_forward(self._mj_model, self._mj_data)
+        # mujoco.mj_forward(self._mj_model, self._mj_data)
         # ---
         px_box = np.random.uniform(low=1.4, high=1.5)
         py_box = np.random.uniform(low=0.3, high=0.9)
@@ -192,13 +196,42 @@ class PickBoxEnv(Env):
         n_steps = self._sim_hz // self._control_hz
         if action is not None:
             self._latest_action = action
+            # # 朝鳴傘花初版UR5控制方式
+            # Ti = self._T0 * sm.SE3.Trans(action[0], action[1], action[2])
+            # self._robot.move_cartesian(Ti)
+            # joint_position = self._robot.get_joint()
+            # self._mj_data.ctrl[:6] = joint_position
+            # action[3] = np.clip(action[3], 0, 1)
+            # self._mj_data.ctrl[6] = action[3] * 255.0
+            # # ---------------
+            # ---------- UR5: 沿用原本 4 維 + 額外 3 維旋轉偏移 ----------
+            # 1) 位置 + 夾爪（完全沿用舊邏輯）
+            pos_off = action[0:3]          # 和以前一樣，單位直接是 meter 偏移
+            grip_cmd = np.clip(action[3], 0.0, 1.0)
 
-            Ti = self._T0 * sm.SE3.Trans(action[0], action[1], action[2])
+            # 2) 額外的 RPY 偏移（新增）
+            #    如果你的 handler 目前只有 4 維，action[4:7] 會是 0，不會影響行為
+            if action.shape[0] >= 7:
+                rot_raw = action[4:7]
+            else:
+                rot_raw = np.zeros(3)
+
+            # 給旋轉一個縮放（避免一次轉太多），例如每單位 = 10 度：
+            rot_off = np.clip(rot_raw, -1.0, 1.0) * self._ur5_rot_step  # self._ur5_rot_step ~= 0.05 rad
+
+            # 3) 目標位姿：從初始 T0 出發，先平移再旋轉
+            Ti = (
+                self._T0
+                * sm.SE3.Trans(pos_off[0], pos_off[1], pos_off[2])
+                * sm.SE3.RPY(rot_off[0], rot_off[1], rot_off[2], order="xyz")
+            )
+
+            # 4) 丟給 Robot 做 IK，一樣
             self._robot.move_cartesian(Ti)
             joint_position = self._robot.get_joint()
             self._mj_data.ctrl[:6] = joint_position
-            action[3] = np.clip(action[3], 0, 1)
-            self._mj_data.ctrl[6] = action[3] * 255.0
+            # 夾爪：同你原本邏輯
+            self._mj_data.ctrl[6] = grip_cmd * 255.0
         mujoco.mj_step(self._mj_model, self._mj_data, n_steps)
 
         # 靠近就連接
@@ -223,11 +256,11 @@ class PickBoxEnv(Env):
         #         self._cloth_attached = True
 
         pad_site = 'right_pad'  # 或你現在實際存在的 site 名
-        cloth_site = 'cloth_anchor'
+        # cloth_site = 'cloth_anchor'
         cloth_1_body = 'cloth_1'
 
         pad_pos = self._mj_data.site(pad_site).xpos
-        cloth_pos = self._mj_data.site(cloth_site).xpos
+        # cloth_pos = self._mj_data.site(cloth_site).xpos
         cloth_1_pos = self._mj_data.body(cloth_1_body).xpos
         # dist = np.linalg.norm(pad_pos - cloth_pos)
         dist = np.linalg.norm(pad_pos - cloth_1_pos)
@@ -284,7 +317,7 @@ class PickBoxEnv(Env):
                 # name2 = model.body(b2).name
                 # print("grasp_right pair =", name1, name2)  # 應印出: right_pad cloth_1
 
-                wy_body = mj.get_body_pose(model, data, "wy")
+                # wy_body = mj.get_body_pose(model, data, "wy")
                 cloth_1_body = mj.get_body_pose(model, data, "cloth_1")
                 # print("[DEBUG] wy_body_pos:", wy_body.t)
                 # print("[DEBUG] cloth_anchor_site:", data.site('cloth_anchor').xpos)

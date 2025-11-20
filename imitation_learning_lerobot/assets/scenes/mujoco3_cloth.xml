@@ -19,13 +19,13 @@
         <body mocap="true" name="pin_D_mocap" pos="1.77 1.05 0.75"/>
            
         <!-- <body name="wy"  pos="1.27 0.75 0.75" euler="0 3.1415 3.1415"  > -->
-        <body name="wy"  pos="0.97 0.45 0.75"  >
+        <!-- <body name="wy"  pos="0.97 0.45 0.75"  >
             <joint name="wy_free" type="free" />
             <geom type="sphere" size="0.01 " rgba="1 0 0 1" contype="2" conaffinity="2" />
-            <site name="cloth_anchor" pos="0 0 0" size="0.002" rgba="0 0 1 0.2"  />
+            <site name="cloth_anchor" pos="0 0 0" size="0.002" rgba="0 0 1 0.2"  /> -->
             <!-- <flexcomp name="cloth" type="mesh" radius="0.005" dim="2" pos="0 0 0" mass="2.552954456795875" material="cloth_material" file="/home/wuc120/benchmarking_cloth/bcm/assets/meshes/towelwy.obj"> -->
             
-        </body>
+        <!-- </body> -->
         <flexcomp name="cloth" type="mesh" radius="0.005" dim="2" pos="0.97 0.45 0.75" mass="0.5" material="cloth_material" file="/home/wuc120/benchmarking_cloth/bcm/assets/meshes/towelwy.obj" scale ="0.6 0.6 0.6">
                 <edge equality="true" damping="1.0" />
                 <!-- <contact solref="0.003" /> -->
