@@ -9,7 +9,7 @@ import mujoco.viewer
 
 from .env import Env
 
-from ..arm.robot import Robot, UR5e
+from ..arm.robot import Robot, UR5e, SO101
 from ..arm.motion_planning import LinePositionParameter, OneAttitudeParameter, CartesianParameter, \
     QuinticVelocityParameter, TrajectoryParameter, TrajectoryPlanner
 from ..utils import mj
@@ -58,6 +58,15 @@ class PickBoxEnv(Env):
                                   "wrist_2_joint", "wrist_3_joint"]
         self._robot_T = sm.SE3()
         self._T0 = sm.SE3()
+        self._ur5_rot_step = 0.5  # rad
+
+        # --- [修改 2] SO101 初始化 ---
+        self._so101: Robot = SO101()
+        self._so101_q = np.zeros(self._so101.dof)
+        self._so101_joint_names = ["so101_shoulder_pan", "so101_shoulder_lift", "so101_elbow_flex", "so101_wrist_flex", "so101_wrist_roll", "so101_gripper_joint"]
+        self._so101_T = sm.SE3()
+        self._so101_T0 = sm.SE3()
+        self._so101_rot_step = 0.5 # rad # 定義 SO101 的移動步長 (旋轉)
 
         self._mj_renderer: mujoco.Renderer = None
         self._mj_viewer: mujoco.viewer.Handle = None
@@ -70,7 +79,12 @@ class PickBoxEnv(Env):
         self._grasp_eq_names = ["grasp_right_0","grasp_right_1","grasp_right_2","grasp_right_3"]
         self._grasp_eq_idx = 0
         self._grasp_eq = self._grasp_eq_names[self._grasp_eq_idx]
-        self._ur5_rot_step = 0.5  # rad
+
+        # Debug: Check body names
+        print("Available Body Names:")
+        for i in range(self._mj_model.nbody):
+            print(f"- {mujoco.mj_id2name(self._mj_model, mujoco.mjtObj.mjOBJ_BODY, i)}")
+        
 
     def next_grasp_point(self):
         self._grasp_eq_idx = (self._grasp_eq_idx + 1) % len(self._grasp_eq_names)
@@ -98,6 +112,34 @@ class PickBoxEnv(Env):
         self._robot.set_tool(sm.SE3.Trans(0.0, 0.0, 0.15))
         self._robot_T = self._robot.fkine(self._robot_q)
         self._T0 = self._robot_T.copy()
+
+        # --- 重置 SO101 ---
+        self._so101.disable_base()
+        self._so101.disable_tool()
+        try:
+            self._so101.set_base(mj.get_body_pose(self._mj_model, self._mj_data, "so101_base")) # 需確認 XML body name
+            print("[INFO] SO101 base body found and set from XML.")
+        except:
+            print("[WARN] SO101 base body not found in XML, using default base pose.")
+            # pass # 若找不到 body 則假設在原點或由 XML 定義
+
+        # SO101 初始姿勢 (全 0 為伸直，可依需求調整)
+        self._so101_q = np.array([0.0, -0.6, 1.2, -0.6, 0.0, 0.0])
+        self._so101.set_joint(self._so101_q)
+
+        for i, jn in enumerate(self._so101_joint_names):
+            try:
+                mj.set_joint_q(self._mj_model, self._mj_data, jn, self._so101_q[i])
+            except:
+                print(f"[WARN] SO101 joint '{jn}' not found in XML, skipping setting its position.")
+                # pass # 忽略 XML 中找不到的 joint
+
+        #為何這裡不需要set_tool?
+        self._so101_T = self._so101.fkine(self._so101_q)
+        self._T0_so101 = self._so101_T.copy()
+
+        mujoco.mj_forward(self._mj_model, self._mj_data)
+
 
 
         # --- 夾爪已 attach 完成到 UR 法蘭 ---
@@ -232,6 +274,31 @@ class PickBoxEnv(Env):
             self._mj_data.ctrl[:6] = joint_position
             # 夾爪：同你原本邏輯
             self._mj_data.ctrl[6] = grip_cmd * 255.0
+
+            # ================= SO101 控制 (Action 7~13) =================
+            so101_pos_off = action[7:10]   # dx, dy, dz
+            so101_grip_cmd = np.clip(action[10], 0.0, 1.0)    # gripper (通常 -1~1 或 0~1)
+            so101_rot_raw = action[11:14]  # roll, pitch, yaw
+
+            so101_rot_off = np.clip(so101_rot_raw, -1.0, 1.0) * self._so101_rot_step
+
+            target_pos_world = self._T0_so101.t + so101_pos_off
+            T_rot = sm.SE3.RPY(so101_rot_off[0], so101_rot_off[1], so101_rot_off[2], order="xyz")
+            Ti_so = sm.SE3.Rt(self._T0_so101.R, target_pos_world) * T_rot
+            so101_joint_position = self._so101.ikine(Ti_so)
+
+
+            # # 計算 SO101 目標位姿
+            # Ti_so = (
+            #     self._T0_so101
+            #     * sm.SE3.Trans(so101_pos_off[0], so101_pos_off[1], so101_pos_off[2])
+            #     * sm.SE3.RPY(so101_rot_off[0], so101_rot_off[1], so101_rot_off[2], order="xyz")
+            # )
+            so101_joint_position[5] = so101_grip_cmd * 1 # 縮放係數
+            so101_joint_position[5] = np.clip(so101_joint_position[5], -1.5, 1.5) # 限制範圍
+            self._so101.set_joint(so101_joint_position) # 更新機器人內部狀態
+            print(f"so101_joint_position: {so101_joint_position}")
+            self._mj_data.ctrl[7:13] = so101_joint_position
         mujoco.mj_step(self._mj_model, self._mj_data, n_steps)
 
         # 靠近就連接
