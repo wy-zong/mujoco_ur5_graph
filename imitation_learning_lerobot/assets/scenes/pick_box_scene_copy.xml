@@ -108,6 +108,12 @@
 		<weld name="grasp_right_1" body1="pinch" body2="cloth_19"  active="false" />
 		<weld name="grasp_right_2" body1="pinch" body2="cloth_110"  active="false" />
 		<weld name="grasp_right_3" body1="pinch" body2="cloth_120"  active="false" /> 
+
+		<!-- SO101 用（body1 換成 so101_gripper） -->
+		<weld name="grasp_so101_0" body1="so101_gripper" body2="cloth_0"   active="false" />
+		<weld name="grasp_so101_1" body1="so101_gripper" body2="cloth_19"  active="false" />
+		<weld name="grasp_so101_2" body1="so101_gripper" body2="cloth_110" active="false" />
+		<weld name="grasp_so101_3" body1="so101_gripper" body2="cloth_120" active="false" /> 
 	</equality>
 
 </mujoco>
