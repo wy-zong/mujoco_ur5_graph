@@ -343,8 +343,15 @@ class PickBoxEnv(Env):
             curr_radius = np.sqrt(curr_target_x**2 + curr_target_y**2)
             curr_theta  = np.arctan2(curr_target_y, curr_target_x)
 
+            # [修正 1] 限制最大半徑 (Max Radius Constraint)
+            # 你需要根據 SO-101 的實際長度設定這個值，建議稍微小一點點以保留餘裕
+            # SO-101 約 40~45cm，這裡設 0.40m 作為安全邊界
+            MAX_RADIUS = 0.40 
+            MIN_RADIUS = 0.10 # 也不要縮到太裡面撞到自己
+
             # 加上增量
             new_radius = curr_radius + np.clip(dr_cmd, -1.0, 1.0) * radius_step
+            new_radius = np.clip(new_radius, MIN_RADIUS, MAX_RADIUS)
             new_theta  = curr_theta  + np.clip(dtheta_cmd, -1.0, 1.0) * theta_step
             
             # 轉回直角座標 (x, y)
@@ -353,7 +360,7 @@ class PickBoxEnv(Env):
             
             # 更新 Z 軸 (直接累加)
             new_target_z = self._so101_target_pos[2] + np.clip(dz, -1.0, 1.0) * 0.02
-
+            new_target_z = np.clip(new_target_z, 0.0, 0.3)  # 限制 Z 軸範圍 (0~50cm)
             # 將算好的新座標寫回記憶變數 (Latched)
             self._so101_target_pos = np.array([new_target_x, new_target_y, new_target_z])
 
@@ -394,13 +401,15 @@ class PickBoxEnv(Env):
             if ik_success:
                 self._so101_q = sol_q_rad
                 for i in range(5):
-                    mj.set_joint_q(self._mj_model, self._mj_data, self._so101_joint_names[i], self._so101_q[i])
+                    # mj.set_joint_q(self._mj_model, self._mj_data, self._so101_joint_names[i], self._so101_q[i])
+                    self._mj_data.ctrl[7+i] = self._so101_q[i]
                 
                 gripper_val = -0.5 + so101_grip_cmd * 2.0 
-                mj.set_joint_q(self._mj_model, self._mj_data, self._so101_joint_names[5], gripper_val)
+                self._mj_data.ctrl[12] = gripper_val
+                # mj.set_joint_q(self._mj_model, self._mj_data, self._so101_joint_names[5], gripper_val)
 
-                self._so101.set_joint(self._so101_q)
-                mujoco.mj_forward(self._mj_model, self._mj_data)
+                # self._so101.set_joint(self._so101_q)
+                # mujoco.mj_forward(self._mj_model, self._mj_data)
             
         mujoco.mj_step(self._mj_model, self._mj_data, n_steps)
         
