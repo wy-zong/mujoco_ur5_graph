@@ -1,5 +1,7 @@
 #pick_box_env.py
 import os
+# 設定 MuJoCo 使用 GPU 渲染 (Windows 需要 wgl 或 glfw)
+os.environ["MUJOCO_GL"] = "glfw"
 import time
 from pathlib import Path
 import numpy as np
@@ -42,8 +44,8 @@ class PickBoxEnv(Env):
     def __init__(self, render_mode: str = "rgb_array"):
         super().__init__()
 
-        self._sim_hz = 500
-        self._control_hz = 25
+        self._sim_hz = 600  # 600/30 = 20 步，保持高物理精度
+        self._control_hz = 30  # 匹配真機 30fps 相機
 
         self._render_mode = render_mode
 
@@ -286,6 +288,9 @@ class PickBoxEnv(Env):
 
 
     def step(self, action):
+        import time
+        _t_start = time.time()
+        
         n_steps = self._sim_hz // self._control_hz
         if action is not None:
             self._latest_action = action
@@ -412,6 +417,7 @@ class PickBoxEnv(Env):
                 # mujoco.mj_forward(self._mj_model, self._mj_data)
             
         mujoco.mj_step(self._mj_model, self._mj_data, n_steps)
+        _t_physics = time.time()
         
         
 
@@ -644,7 +650,13 @@ class PickBoxEnv(Env):
                 print("[WARN] detach failed:", e)
 
 
+        _t_logic = time.time()
         observation = self._get_observation()
+        _t_obs = time.time()
+        
+        # 每 50 步打印一次性能資訊
+        if self._step_num % 50 == 0:
+            print(f"[PERF] physics: {(_t_physics - _t_start)*1000:.0f}ms, logic: {(_t_logic - _t_physics)*1000:.0f}ms, obs: {(_t_obs - _t_logic)*1000:.0f}ms, total: {(_t_obs - _t_start)*1000:.0f}ms")
         reward = 0.0
         terminated = False
 
@@ -675,7 +687,8 @@ class PickBoxEnv(Env):
         pass
 
     def _get_observation(self):
-        mujoco.mj_forward(self._mj_model, self._mj_data)
+        # 注意: mj_forward() 已在 step() 中透過 mj_step() 調用過，這裡不需要重複調用
+        # mujoco.mj_forward(self._mj_model, self._mj_data)  # 已移除以提升性能
 
         for i in range(len(self._ur5e_joint_names)):
             self._robot_q[i] = mj.get_joint_q(self._mj_model, self._mj_data, self._ur5e_joint_names[i])[0]
@@ -684,6 +697,7 @@ class PickBoxEnv(Env):
         agent_pos[:3] = self._robot_T.t
         agent_pos[3] = np.linalg.norm(self._mj_data.site('left_pad').xpos - self._mj_data.site('right_pad').xpos)
 
+        # GPU 渲染已啟用 (MUJOCO_GL=glfw)
         self._mj_renderer.update_scene(self._mj_data, 0)
         image_top = self._mj_renderer.render()
         self._mj_renderer.update_scene(self._mj_data, 1)
