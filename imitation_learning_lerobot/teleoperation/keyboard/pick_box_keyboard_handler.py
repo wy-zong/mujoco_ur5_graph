@@ -43,28 +43,37 @@ class PickBoxKeyboardHandler(Handler):
             return
 
         # ===== 切換控制哪一隻手臂 =====
-        if key_char in ['0', '.']:
+        if key_char in ['0', '.', 'Key.tab', 'Key.delete']:
             self._active_arm = 1 - self._active_arm
             print(f"[INFO] Active arm: {'UR5' if self._active_arm == 0 else 'SO101'}")
             return
 
-        # ========== UR5 控制（照你原來的，一樣就好） ==========
+        # ========== UR5 控制 ==========
+        # 支援數字鍵盤和特殊鍵 (方向鍵, End, Home, etc.) 作為替代
         if self._active_arm == 0:
-            if key_char == '2':
+            # +Z: 2 or Key.down
+            if key_char == '2' or key_char == 'Key.down':
                 self._action[2] += self._vel
-            if key_char == '8':
+            # -Z: 8 or Key.up
+            if key_char == '8' or key_char == 'Key.up':
                 self._action[2] -= self._vel
-            if key_char == "6":
+            # -X: 6 or Key.right
+            if key_char == '6' or key_char == 'Key.right':
                 self._action[0] -= self._vel
-            if key_char == '4':
+            # +X: 4 or Key.left
+            if key_char == '4' or key_char == 'Key.left':
                 self._action[0] += self._vel
-            if key_char == '7':
+            # +Y: 7 or Key.home
+            if key_char == '7' or key_char == 'Key.home':
                 self._action[1] += self._vel
-            if key_char == '1':
+            # -Y: 1 or Key.end
+            if key_char == '1' or key_char == 'Key.end':
                 self._action[1] -= self._vel
-            if key_char == '9':
+            # Gripper close: 9 or Key.page_up
+            if key_char == '9' or key_char == 'Key.page_up':
                 self._action[3] += 0.05
-            if key_char == '3':
+            # Gripper open: 3 or Key.page_down
+            if key_char == '3' or key_char == 'Key.page_down':
                 self._action[3] -= 0.05
             if key_char == '/':
                 self._action[4] += 0.05
@@ -76,30 +85,32 @@ class PickBoxKeyboardHandler(Handler):
                 self._action[5] -= 0.05
             if key_char == '5':
                 self._action[6] += 0.05
-            if key_char == '0':
+            # Yaw-: 0 or Key.insert
+            if key_char == '0' or key_char == 'Key.insert':
                 self._action[6] -= 0.05
 
             self._action[3] = np.clip(self._action[3], 0.0, 1.0)
             return
 
-        # ========== SO101 控制（「方向旗標」版，除了步長其他復刻） ==========
+        # ========== SO101 控制 ==========
+        # 支援數字鍵盤和特殊鍵作為替代
         else:
-            # X：1 / 7
-            if key_char == '1':
+            # X：1 / 7 or End / Home
+            if key_char == '1' or key_char == 'Key.end':
                 self._action[7] = +1.0
-            if key_char == '7':
+            if key_char == '7' or key_char == 'Key.home':
                 self._action[7] = -1.0
 
-            # Y（實際是 base pan 關節）：4 / 6
-            if key_char == '4':
+            # Y：4 / 6 or Left / Right
+            if key_char == '4' or key_char == 'Key.left':
                 self._action[8] = +1.0
-            if key_char == '6':
+            if key_char == '6' or key_char == 'Key.right':
                 self._action[8] = -1.0
 
-            # Z：8 / 2
-            if key_char == '8':
+            # Z：8 / 2 or Up / Down
+            if key_char == '8' or key_char == 'Key.up':
                 self._action[9] = +1.0
-            if key_char == '2':
+            if key_char == '2' or key_char == 'Key.down':
                 self._action[9] = -1.0
 
             # roll：q / e
@@ -114,10 +125,10 @@ class PickBoxKeyboardHandler(Handler):
             if key_char == '+':
                 self._action[11] = -1.0
 
-            # gripper：9 / 3（用方向旗標，步長由 env 控制）
-            if key_char == '9':
+            # gripper：9 / 3 or PageUp / PageDown
+            if key_char == '9' or key_char == 'Key.page_up':
                 self._action[12] = +1.0
-            if key_char == '3':
+            if key_char == '3' or key_char == 'Key.page_down':
                 self._action[12] = -1.0
 
     def on_release(self, key):
@@ -176,13 +187,13 @@ class PickBoxKeyboardHandler(Handler):
             key_char = str(key)
 
         # 放開鍵就把 SO101 對應方向清零（不管現在 active_arm 是誰）
-        if key_char in ['1', '7']:
+        if key_char in ['1', '7', 'Key.end', 'Key.home']:
             self._action[7] = 0.0
-        if key_char in ['6', '4']:
+        if key_char in ['6', '4', 'Key.left', 'Key.right']:
             self._action[8] = 0.0
-        if key_char in ['8', '2']:
+        if key_char in ['8', '2', 'Key.up', 'Key.down']:
             self._action[9] = 0.0
-        if key_char in ['9', '3']:
+        if key_char in ['9', '3', 'Key.page_up', 'Key.page_down']:
             self._action[12] = 0.0
         if key_char in ['/', '*']:
             self._action[10] = 0.0

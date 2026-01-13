@@ -1,6 +1,13 @@
 from typing import Type
 from pathlib import Path
 import argparse
+import sys
+
+# Add project root to path for cross-platform compatibility
+_SCRIPT_DIR = Path(__file__).parent.resolve()
+_PROJECT_ROOT = _SCRIPT_DIR.parent.parent
+if str(_PROJECT_ROOT) not in sys.path:
+    sys.path.insert(0, str(_PROJECT_ROOT))
 
 from loop_rate_limiters import RateLimiter
 import numpy as np

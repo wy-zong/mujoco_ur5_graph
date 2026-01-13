@@ -97,7 +97,7 @@ class PickBoxEnv(Env):
         self._so101_pitch_offset = 0.0
 
         self._so101_q = np.zeros(6)
-        so101_urdf_path = "/home/wuc120/imitation_learning_lerobot/imitation_learning_lerobot/assets/SO-ARM100/Simulation/SO101/so101_new_calib.urdf"
+        so101_urdf_path = str(Path(__file__).parent.parent / "assets/SO-ARM100/Simulation/SO101/so101_new_calib.urdf")
 
         self.lerobot_kinematics = RobotKinematics(
             urdf_path=so101_urdf_path,
