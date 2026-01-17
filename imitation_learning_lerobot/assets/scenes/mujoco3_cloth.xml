@@ -7,7 +7,7 @@
         <headlight ambient="0.4 0.4 0.4" diffuse="0.6 0.6 0.6" specular="0.2 0.2 0.2" />
     </visual>
     <asset>
-        <texture name="cloth_texture" type="2d" file="/home/wuc120/imitation_learning_lerobot/imitation_learning_lerobot/textures/chequered_rag.png" />
+        <texture name="cloth_texture" type="2d" file="D:/lerobot_arm/mujoco_ur5_graph/imitation_learning_lerobot/textures/chequered_rag.png" />
         <material name="cloth_material" texture="cloth_texture" />
     </asset>
     <worldbody>
@@ -26,7 +26,7 @@
             <!-- <flexcomp name="cloth" type="mesh" radius="0.005" dim="2" pos="0 0 0" mass="2.552954456795875" material="cloth_material" file="/home/wuc120/benchmarking_cloth/bcm/assets/meshes/towelwy.obj"> -->
             
         <!-- </body> -->
-        <flexcomp name="cloth" type="mesh" radius="0.005" dim="2" pos="0.97 0.45 0.75" mass="0.5" material="cloth_material" file="/home/wuc120/benchmarking_cloth/bcm/assets/meshes/towelwy.obj" scale ="0.6 0.6 0.6">
+        <flexcomp name="cloth" type="mesh" radius="0.005" dim="2" pos="0.97 0.45 0.75" mass="0.5" material="cloth_material" file="D:/lerobot_arm/mujoco_ur5_graph/imitation_learning_lerobot/assets/mesh/towelwy.obj" scale ="0.6 0.6 0.6">
                 <edge equality="true" damping="1.0" />
                 <!-- <contact solref="0.003" /> -->
                 <contact selfcollide="none" internal="false" contype="2" conaffinity="2"  condim="3" friction="1.2 0.01 0.001" solref="0.02 1" solimp="0.90 0.99 0.003"/>

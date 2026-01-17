@@ -18,6 +18,6 @@ class HandlerFactory:
 
     @classmethod
     def register_all(cls):
-        leaf_subclasses: list[Type[Handler]] = ClassUtils.get_leaf_subclasses(Handler)
+        leaf_subclasses: list[Type[Handler]] = ClassUtils.get_all_subclasses(Handler)
         for subclass in leaf_subclasses:
             cls.register(subclass.name, subclass)

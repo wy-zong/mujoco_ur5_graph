@@ -13,7 +13,7 @@ setup(
         "roboticstoolbox-python",
         "numpy>=1.26.4",
         "modern-robotics",
-        "placo==0.9.14",
+        # "placo==0.9.14",
         "transformers==4.51.3",
         "num2words",
         "accelerate",

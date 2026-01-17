@@ -1,7 +1,7 @@
 #pick_box_env.py
 import os
 # 設定 MuJoCo 使用 GPU 渲染 (Windows 需要 wgl 或 glfw)
-os.environ["MUJOCO_GL"] = "glfw"
+# os.environ["MUJOCO_GL"] = "glfw"
 import time
 from pathlib import Path
 import numpy as np
@@ -172,18 +172,22 @@ class PickBoxEnv(Env):
 
         # ... (保留原本 SO101 reset 代碼，直到 self._so101_T 計算完畢) ...
         
-        # [新增] 初始化目標記憶變數
-        # 使用 LeRobot FK 算出來的初始位置做為起點
-        current_q_rad = np.array([
-            mj.get_joint_q(self._mj_model, self._mj_data, jn)[0] 
-            for jn in self._so101_joint_names
-        ])
-        T_init = self.lerobot_kinematics.forward_kinematics(np.rad2deg(current_q_rad))
-        T_init_se3 = sm.SE3(T_init)
-        
-        self._so101_target_pos = T_init_se3.t
-        # 取得初始 RPY (注意 spatialmath 的 rpy 順序，通常是 'zyx' 或 'xyz'，這裡統一用 rpy)
-        self._so101_target_rpy = T_init_se3.rpy(order='xyz')
+        # [新增] 初始化目標記憶變數 (含 SO101 存在性檢查)
+        try:
+            current_q_rad = np.array([
+                mj.get_joint_q(self._mj_model, self._mj_data, jn)[0] 
+                for jn in self._so101_joint_names
+            ])
+            T_init = self.lerobot_kinematics.forward_kinematics(np.rad2deg(current_q_rad))
+            T_init_se3 = sm.SE3(T_init)
+            
+            self._so101_target_pos = T_init_se3.t
+            # 取得初始 RPY (注意 spatialmath 的 rpy 順序，通常是 'zyx' 或 'xyz'，這裡統一用 rpy)
+            self._so101_target_rpy = T_init_se3.rpy(order='xyz')
+        except Exception:
+            # SO101 不存在，使用預設值
+            self._so101_target_pos = np.array([0.18, 0.0, 0.15])
+            self._so101_target_rpy = np.array([0.0, 0.0, 0.0])
 
         mujoco.mj_forward(self._mj_model, self._mj_data)
 
@@ -442,22 +446,24 @@ class PickBoxEnv(Env):
         #         mujoco.mj_forward(self._mj_model, self._mj_data)
         #         self._cloth_attached = True
 
-        pad_site = 'right_pad'  # 或你現在實際存在的 site 名
-        # cloth_site = 'cloth_anchor'
-        cloth_1_body = 'cloth_1'
-
-        pad_pos = self._mj_data.site(pad_site).xpos
-        # cloth_pos = self._mj_data.site(cloth_site).xpos
-        cloth_1_pos = self._mj_data.body(cloth_1_body).xpos
-        # dist = np.linalg.norm(pad_pos - cloth_pos)
-        dist = np.linalg.norm(pad_pos - cloth_1_pos)
-        # print(f"[DEBUG] dist={dist:.4f}, pad={pad_pos}, cloth={cloth_pos}")
-        print(f"[DEBUG] dist={dist:.4f}, pad={pad_pos}, cloth={cloth_1_pos}")
+        # [布料偵測]
+        cloth_exists = False
+        try:
+            pad_site = 'right_pad'
+            cloth_1_body = 'cloth_1'
+            pad_pos = self._mj_data.site(pad_site).xpos
+            cloth_1_pos = self._mj_data.body(cloth_1_body).xpos
+            dist = np.linalg.norm(pad_pos - cloth_1_pos)
+            if self._step_num % 100 == 0:
+                print(f"[DEBUG] dist={dist:.4f}, pad={pad_pos}, cloth={cloth_1_pos}")
+            cloth_exists = True
+        except Exception:
+            pass
 
         
 
 
-        if not self._cloth_attached:
+        if not self._cloth_attached and cloth_exists:
             # pad_pos = self._mj_data.site('right_pad').xpos
             # cloth_pos = self._mj_data.site('cloth_anchor').xpos
             # cloth_1_pos = self._mj_data.body(cloth_1_body).xpos

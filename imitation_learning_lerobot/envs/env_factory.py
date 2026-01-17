@@ -18,6 +18,6 @@ class EnvFactory:
 
     @classmethod
     def register_all(cls):
-        leaf_subclasses: list[Type[Env]] = ClassUtils.get_leaf_subclasses(Env)
+        leaf_subclasses: list[Type[Env]] = ClassUtils.get_all_subclasses(Env)
         for subclass in leaf_subclasses:
             cls.register(subclass.name, subclass)

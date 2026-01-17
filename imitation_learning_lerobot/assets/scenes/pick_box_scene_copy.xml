@@ -1,16 +1,17 @@
 <mujoco model="scene">
 
     <compiler angle="radian" autolimits="true" />
-    <option timestep="0.02" integrator="implicitfast" solver="CG"
+    <option timestep="0.002" integrator="implicitfast" solver="PGS"
             cone="elliptic" >
-		<flag energy="enable" />	
+		<!-- <flag energy="enable" />	 -->
 		<!--		 <flag multiccd="enable"/>-->
     </option>
-	<include file="/home/wuc120/imitation_learning_lerobot/imitation_learning_lerobot/assets/scenes/mujoco3_cloth.xml" />
+	<!-- 布料模擬（暫時註解掉） -->
+	<!-- <include file="D:/lerobot_arm/mujoco_ur5_graph/imitation_learning_lerobot/assets/scenes/mujoco3_cloth.xml" /> -->
 	<!-- <include file="/home/wuc120/benchmarking_cloth/bcm/assets/衣服.xml" /> -->
     <include file="../universal_robots_ur5e/ur5e.xml" />
     <include file="../robotiq_2f85/2f85.xml" />
-	<include file="/home/wuc120/imitation_learning_lerobot/imitation_learning_lerobot/assets/SO-ARM100/Simulation/SO101/so101_new_calib.xml" />
+	<include file="D:/lerobot_arm/mujoco_ur5_graph/imitation_learning_lerobot/assets/SO-ARM100/Simulation/SO101/so101_new_calib.xml" />
 	<size memory="512000000" />
     <statistic center="0.3 0 0.3" extent="0.8" meansize="0.08"  />
 
@@ -51,45 +52,44 @@
 		<body name="Box" pos="1.4 0.6 0.77" quat="1 0 0 0">
 			<joint name="Box" type="free" />
 <!--			<inertial mass="0.01" pos="0 0 0" diaginertia="0.001 0.001 0.001" />-->
-			<geom name="Box" type="box" size="0.001 0.001 0.001" rgba="1 0 1 1" condim="6"/>
+			<geom name="Box" type="box" size="0.025 0.025 0.025" rgba="1 0 1 1" condim="6"/>
 		</body>
 
-		<!--Zones-->
-		<!-- <body name="zone_pickup" pos="1.4 0.6 0.73" quat="1 0 0 0"> -->
-			<!-- <geom name="zone_pickup" type="box" size="0.2 0.6 0.01" rgba="0 1 0 0.1" contype="0" conaffinity="0"/> -->
-			<!-- <geom name="zone_pickup" type="box" size="0.6 0.9 0.01" rgba="0 1 0 0.1" friction="1.5 0.002 0.0001" />
-		</body> -->
-<!--		<body name="zone_drop" pos="1.4 0.15 0.73" quat="1 0 0 0">-->
-<!--			<geom name="zone_drop" type="box" size="0.2 0.15 0.01" rgba="1 0 0 0.1" contype="0" conaffinity="0"/>-->
-<!--		</body>-->
+		<!-- Zones -->
+		<body name="zone_pickup" pos="1.4 0.6 0.73" quat="1 0 0 0">
+			<geom name="zone_pickup" type="box" size="0.2 0.6 0.01" rgba="0 1 0 0.1" contype="0" conaffinity="0"/>
+		</body>
+		<body name="zone_drop" pos="1.4 0.15 0.73" quat="1 0 0 0">
+			<geom name="zone_drop" type="box" size="0.2 0.15 0.01" rgba="1 0 0 0.1" contype="0" conaffinity="0"/>
+		</body>
 
         <!--table -->
 		<body name = "table1" euler="0 0 0" pos= "0.5 0 0.74" >
-		  <geom name = "table1" type="mesh" mesh="table" group="2" rgba="0.35 0.35 0.35 1" mass="0" contype="2" conaffinity="2" friction="1.5 0.002 0.0001"/>
+		  <geom name = "table1" type="mesh" mesh="table" group="2" rgba="0.35 0.35 0.35 1" mass="0" contype="0" conaffinity="0" />
 		</body>
 		<body name = "table2" euler="0 0 0" pos= "1.3 0 0.74" >
-		  <geom name = "table2" type="mesh" mesh="table" group="2" rgba="0.35 0.35 0.35 1" mass="0" contype="2" conaffinity="2" friction="1.5 0.002 0.0001"/>
+		  <geom name = "table2" type="mesh" mesh="table" group="2" rgba="0.35 0.35 0.35 1" mass="0" contype="0" conaffinity="0" />
 		</body>
 
-		<!-- <body name="simple_table" pos="0.8 0.6 0.69" quat="1 0 0 0">
-			<geom name="simple_table" type="box" size="0.8 0.6 0.05" rgba="0.5 0.5 0.5 0.1" friction="1.5 0.002 0.0001"/>
-		</body> -->
+		<body name="simple_table" pos="0.8 0.6 0.69" quat="1 0 0 0">
+			<geom name="simple_table" type="box" size="0.8 0.6 0.05" rgba="0.5 0.5 0.5 0.1"/>
+		</body>
 
 
 
 		<!-- 放在 worldbody 裡其他 body 之後都行 -->
-		<body name="grab_L" pos="0 0 0" quat="1 0 0 0">
-			<joint name="grab_L_free" type="free"/>
+		<!-- <body name="grab_L" pos="0 0 0" quat="1 0 0 0"> -->
+			<!-- <joint name="grab_L_free" type="free"/> -->
 			<!-- 幾乎不可見的小球，關閉碰撞（contype=0, conaffinity=0） -->
-			<geom type="sphere" size="0.0005" rgba="1 0 0 0" contype="0" conaffinity="0"/>
-			<site name="grab_L_site" pos="0 0 0" size="0.001" rgba="1 0 0 0.2"/>
-		</body>
+			<!-- <geom type="sphere" size="0.0005" rgba="1 0 0 0" contype="0" conaffinity="0"/> -->
+			<!-- <site name="grab_L_site" pos="0 0 0" size="0.001" rgba="1 0 0 0.2"/> -->
+		<!-- </body> -->
 
-		<body name="grab_R" pos="0 0 0" quat="1 0 0 0">
-			<joint name="grab_R_free" type="free"/>
-			<geom type="sphere" size="0.0005" rgba="0 1 0 0" contype="0" conaffinity="0"/>
-			<site name="grab_R_site" pos="0 0 0" size="0.001" rgba="0 1 0 0.2"/>
-		</body>
+		<!-- <body name="grab_R" pos="0 0 0" quat="1 0 0 0"> -->
+			<!-- <joint name="grab_R_free" type="free"/> -->
+			<!-- <geom type="sphere" size="0.0005" rgba="0 1 0 0" contype="0" conaffinity="0"/> -->
+			<!-- <site name="grab_R_site" pos="0 0 0" size="0.001" rgba="0 1 0 0.2"/> -->
+		<!-- </body> -->
  
     </worldbody> 
 
@@ -101,19 +101,20 @@
 	</contact>
 
 	<equality>
-		<weld name="attach" body1="flange" body2="2f85_base" active="true" />
+		<weld name="attach" body1="flange" body2="2f85_base" active="false" />
 		<weld name="attach_mocap" body1="mocap" body2="ur5e_base" active="false" />
 		<!-- <weld name="container_attach" body1="world" body2="container" active="true" /> -->
-		<weld name="grasp_right_0" body1="pinch" body2="cloth_0"  active="false" />
-		<weld name="grasp_right_1" body1="pinch" body2="cloth_19"  active="false" />
-		<weld name="grasp_right_2" body1="pinch" body2="cloth_110"  active="false" />
-		<weld name="grasp_right_3" body1="pinch" body2="cloth_120"  active="false" /> 
+		<!-- 布料 weld constraints（暫時註解掉） -->
+		<!-- <weld name="grasp_right_0" body1="pinch" body2="cloth_0"  active="false" /> -->
+		<!-- <weld name="grasp_right_1" body1="pinch" body2="cloth_19"  active="false" /> -->
+		<!-- <weld name="grasp_right_2" body1="pinch" body2="cloth_110"  active="false" /> -->
+		<!-- <weld name="grasp_right_3" body1="pinch" body2="cloth_120"  active="false" /> -->
 
-		<!-- SO101 用（body1 換成 so101_gripper） -->
-		<weld name="grasp_so101_0" body1="so101_gripper" body2="cloth_0"   active="false" />
-		<weld name="grasp_so101_1" body1="so101_gripper" body2="cloth_19"  active="false" />
-		<weld name="grasp_so101_2" body1="so101_gripper" body2="cloth_110" active="false" />
-		<weld name="grasp_so101_3" body1="so101_gripper" body2="cloth_120" active="false" /> 
+		<!-- SO101 布料 weld（暫時註解掉） -->
+		<!-- <weld name="grasp_so101_0" body1="so101_gripper" body2="cloth_0"   active="false" /> -->
+		<!-- <weld name="grasp_so101_1" body1="so101_gripper" body2="cloth_19"  active="false" /> -->
+		<!-- <weld name="grasp_so101_2" body1="so101_gripper" body2="cloth_110" active="false" /> -->
+		<!-- <weld name="grasp_so101_3" body1="so101_gripper" body2="cloth_120" active="false" />  -->
 	</equality>
 
 </mujoco>
