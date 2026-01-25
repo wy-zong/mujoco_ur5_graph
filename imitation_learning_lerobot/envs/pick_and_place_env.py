@@ -76,41 +76,39 @@ class PickAndPlaceEnv(Env):
         self._initialized = False  # 新增：是否已完成第一次 reset
     def _soft_reset_objects_and_time(self):
         """
-        軟重置：保留上一步的機械臂/夾爪狀態，重新擺放 Box，清時間與步數。
+        軟重置：重置機械臂到初始位置，重新擺放 Box，清時間與步數。
         """
-
-        # === 取用快照（若第一次沒有快照，就用當前值備援） ===
-        # if self._last_robot_q is None:
-        #     self._last_robot_q = np.array([
-        #         mj.get_joint_q(self._mj_model, self._mj_data, jn)[0]
-        #         for jn in self._ur5e_joint_names
-        #     ], dtype=float)
-        # if self._last_ctrl is None:
-        #     self._last_ctrl = self._mj_data.ctrl.copy()
-
-        # === 先 reset Data（清掉時間、暫態），但我們會立刻把手臂/夾爪狀態寫回 ===
+        # === 先 reset Data（清掉時間、暫態） ===
         mujoco.mj_resetData(self._mj_model, self._mj_data)
+        mujoco.mj_forward(self._mj_model, self._mj_data)
 
-        # === 重擺 Box（或你要 reset 的其他物件） ===
+        # === 重置運動學模型（與 reset() 相同） ===
+        self._robot.disable_base()
+        self._robot.disable_tool()
+        self._robot.set_base(mj.get_body_pose(self._mj_model, self._mj_data, "ur5e_base"))
+
+        # === 重置機械臂到初始位置 ===
+        self._robot_q = np.array([0.0, 0.0, np.pi / 2, 0.0, -np.pi / 2, 0.0])
+        self._robot.set_joint(self._robot_q)
+        for i, jn in enumerate(self._ur5e_joint_names):
+            mj.set_joint_q(self._mj_model, self._mj_data, jn, float(self._robot_q[i]))
+        mujoco.mj_forward(self._mj_model, self._mj_data)
+        
+        # === 更新夾爪附著點 ===
+        mj.attach(self._mj_model, self._mj_data, "attach", "2f85", self._robot.fkine(self._robot_q))
+        mujoco.mj_forward(self._mj_model, self._mj_data)
+
+        # === 設定工具偏移並更新運動學參考位姿（T0 用於軌跡規劃） ===
+        self._robot.set_tool(sm.SE3.Trans(0.0, 0.0, 0.15))
+        self._robot_T = self._robot.fkine(self._robot_q)
+        self._T0 = self._robot_T.copy()
+
+        # === 重擺 Box（隨機位置） ===
         px = np.random.uniform(low=1.25, high=1.45)
         py = np.random.uniform(low=0.3,  high=0.6)
         pz = 0.77
         T_Box = sm.SE3.Trans(px, py, pz)
         mj.set_free_joint_pose(self._mj_model, self._mj_data, "Box", T_Box)
-
-        # === 把機械臂關節寫回 MuJoCo & 你的運動學模型 ===
-        # 1) 高階運動學模型
-        self._robot.set_joint(self._robot_q)
-        # 2) MuJoCo qpos
-        for i, jn in enumerate(self._ur5e_joint_names):
-            mj.set_joint_q(self._mj_model, self._mj_data, jn, float(self._robot_q[i]))
-
-        # # === 還原夾爪控制（以及其他 actuator ctrl，如需） ===
-        # if self._last_ctrl is not None and len(self._last_ctrl) == len(self._mj_data.ctrl):
-        #     
-        # [:] = self._last_ctrl
-
-        # === 更新全場景 ===
         mujoco.mj_forward(self._mj_model, self._mj_data)
 
         # === 更新快取/內部紀錄 ===
@@ -460,7 +458,8 @@ class PickAndPlaceEnv(Env):
                     break
 
             else:
-                self.close()
+                # 注意：不要在這裡呼叫 self.close()，否則多 episode 時會導致 renderer 被關閉
+                # 讓調用方在結束時自行呼叫 close()
                 return {
                     "observations": observations,
                     "actions": actions

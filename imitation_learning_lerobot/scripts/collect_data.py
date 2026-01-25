@@ -34,6 +34,13 @@ def parse_args():
         help='episode'
     )
 
+    parser.add_argument(
+        '--display',
+        action='store_true',
+        default=False,
+        help='顯示 MuJoCo 視覺化介面 (預設: 不顯示)'
+    )
+
     return parser.parse_args()
 
 
@@ -83,8 +90,9 @@ def create_empty_dataset(env_cls: Type[Env]):
     return dataset
 
 
-def populate_dataset(episode: int, env_cls: Type[Env], dataset: LeRobotDataset):
-    env = env_cls()
+def populate_dataset(episode: int, env_cls: Type[Env], dataset: LeRobotDataset, display: bool = False):
+    render_mode = "human" if display else "rgb_array"
+    env = env_cls(render_mode=render_mode)
     task = env.name
     for i in range(episode):
         data = env.run(keep_state=(i>0))
@@ -95,13 +103,15 @@ def populate_dataset(episode: int, env_cls: Type[Env], dataset: LeRobotDataset):
             frame = {
                 "observation.state": data["observations"][j]["agent_pos"],
                 "action": data["actions"][j],
+                "task": task,  # 新版 API: task 放入 frame 字典中
             }
 
             for camera in env_cls.cameras:
                 frame[f"observation.images.{camera}"] = data["observations"][j]["pixels"][camera]
 
-            dataset.add_frame(frame, task=task)
+            dataset.add_frame(frame)
         dataset.save_episode()
+        print(f"Episode {i+1}/{episode} 完成")
 
     env.close()
 
@@ -114,7 +124,7 @@ def main():
 
     dataset = create_empty_dataset(env_cls)
 
-    populate_dataset(args.episode, env_cls, dataset)
+    populate_dataset(args.episode, env_cls, dataset, display=args.display)
 
 
 if __name__ == '__main__':

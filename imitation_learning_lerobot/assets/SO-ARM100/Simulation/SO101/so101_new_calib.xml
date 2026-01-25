@@ -112,6 +112,10 @@
                       friction="5.0" solimp="0.95 0.99 0.001" solref="0.004 1" priority="1" condim="6"/>
                 <!-- Frame gripperframe -->
                 <site group="3" name="so101_gripperframe" pos="-0.0079 -0.000218121 -0.0981274" quat="0.707107 -0 0.707107 -2.37788e-17"/>
+                <!-- hand: 跟隨夾爪相機，從後上方俯視夾爪 -->
+                <!-- gripperframe 位於 z=-0.098，所以夾爪尖端在負Z方向 -->
+                <!-- 相機放在後上方 (z=0.05, y=0.06)，看向前下方 (負Z方向) -->
+                <camera name="hand" pos="0 0.05 -0.01" xyaxes="1 0 0 0 0.6 -0.8" mode="fixed" fovy="80" />
                 <!-- 固定爪：使用 mesh 碰撞（上方 wrist_roll_follower 已設定高摩擦） -->
                 <!-- Link moving_jaw_so101_v1 -->
                 <body name="moving_jaw_so101_v1" pos="0.0202 0.0188 -0.0234" quat="0.707107 0.707107 -1.85362e-08 1.85362e-08">

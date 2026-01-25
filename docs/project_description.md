@@ -29,8 +29,11 @@ mujoco_ur5_graph/
 │   └── arm/                      # 機器人運動學定義 (Robot, UR5e, SO101)
 ├── docs/                         # 文檔存放區
 ├── scripts/                      # 工具腳本
-├── run_pick_and_place.py         # 單臂環境啟動腳本
-└── test_so101_env.py             # SO101 測試腳本
+├── tests/                        # 測試與驗證腳本
+│   ├── run_pick_and_place.py     # 單臂環境啟動腳本
+│   └── test_so101_env.py         # SO101 測試腳本
+└── outputs/                      # 輸出資料（忽略於 git）
+    └── motor_dynamics/           # 馬達動態數據
 ```
 
 ---
@@ -67,7 +70,7 @@ mujoco_ur5_graph/
 ### 測試環境：`PickAndPlaceEnv` (`pick_and_place_env.py`)
 這是一個簡化的單手臂環境，僅包含 UR5e。
 - **Action Dim**: 4 (dx, dy, dz, gripper) - 僅支援位置控制，無旋轉。
-- **用途**: 用於測試基礎物理模擬與渲染功能 (`run_pick_and_place.py`)。
+- **用途**: 用於測試基礎物理模擬與渲染功能 (`tests/run_pick_and_place.py`)。
 
 ---
 

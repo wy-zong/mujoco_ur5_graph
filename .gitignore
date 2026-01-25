@@ -143,3 +143,9 @@ data/
 logs/
 outputs/
 Lightwheel_RucLBvQfnF_t_shirt/
+
+# Project specific ignores
+envhub/
+.agent/
+MUJOCO_LOG.TXT
+tests/

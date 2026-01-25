@@ -1,0 +1,1 @@
+python scripts/hybrid_teleoperate_test.py --leader_port=COM6

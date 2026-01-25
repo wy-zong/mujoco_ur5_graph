@@ -1,2 +1,3 @@
 from .pick_and_place_env_config import PickAndPlaceEnvConfig
 from .dishwasher_env_config import DishwasherEnvConfig
+from .so101_joint_control_env_config import SO101JointControlEnvConfig

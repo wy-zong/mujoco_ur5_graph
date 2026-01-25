@@ -166,6 +166,9 @@ mujoco_ur5_graph/
 │   └── utils/                      # 工具函式
 ├── lerobot/                        # LeRobot 子模組 (git submodule)
 ├── scripts/                        # Shell 腳本
+├── tests/                          # 測試與驗證腳本
+│   ├── envs/                       # 環境單元測試
+│   └── scripts/                    # 測試用腳本
 └── setup.py                        # 安裝配置
 ```
 

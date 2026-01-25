@@ -6,8 +6,9 @@ from pprint import pformat
 
 import re
 import torch
+import einops
 
-from lerobot.policies.factory import make_policy
+from lerobot.policies.factory import make_policy, make_pre_post_processors
 from lerobot.policies.pretrained import PreTrainedPolicy
 from lerobot.configs import parser
 from lerobot.configs.eval import EvalPipelineConfig
@@ -21,6 +22,41 @@ import numpy as np
 
 # 放在最頂端、任何 @parser.wrap() 與 main() 呼叫之前
 import imitation_learning_lerobot.configs.grasp_cloth_env_config
+import imitation_learning_lerobot.configs.so101_joint_control_env_config
+
+
+def preprocess_so101_observation(observations: dict) -> dict:
+    """
+    SO101 專用觀測預處理函數
+    處理 observation.state 和 observation.images.* 格式
+    """
+    return_observations = {}
+    
+    # 處理 observation.state（關節角度）
+    if 'observation.state' in observations:
+        state = torch.from_numpy(observations['observation.state']).float()
+        if state.dim() == 1:
+            state = state.unsqueeze(0)
+        return_observations['observation.state'] = state
+    
+    # 處理 observation.images.* (相機影像)
+    for key in observations:
+        if key.startswith('observation.images.'):
+            img = observations[key]
+            img_tensor = torch.from_numpy(img)
+            
+            # 添加 batch 維度如果需要
+            if img_tensor.ndim == 3:
+                img_tensor = img_tensor.unsqueeze(0)
+            
+            # 轉換為 channel first 格式
+            img_tensor = einops.rearrange(img_tensor, "b h w c -> b c h w").contiguous()
+            img_tensor = img_tensor.type(torch.float32)
+            img_tensor /= 255.0
+            
+            return_observations[key] = img_tensor
+    
+    return return_observations
 
 
 @parser.wrap()
@@ -31,6 +67,43 @@ def main(cfg: EvalPipelineConfig):
 
     policy = make_policy(cfg=cfg.policy, env_cfg=cfg.env)
     policy.eval()
+    
+    # 初始化 preprocessor 和 postprocessor (關鍵：處理觀測正規化和 action unnormalization)
+    # 覆蓋設備設定以匹配當前可用設備
+    preprocessor_overrides = {
+        "device_processor": {"device": str(device)},
+    }
+    preprocessor, postprocessor = make_pre_post_processors(
+        policy_cfg=cfg.policy,
+        pretrained_path=cfg.policy.pretrained_path,
+        preprocessor_overrides=preprocessor_overrides,
+    )
+    print(f"[INFO] Initialized preprocessor and postprocessor for action unnormalization")
+    
+    # 初始化 tokenizer 用於 VLA 模型
+    tokenizer = None
+    task_prompt = "Pick up the red cube and place it in the blue zone\n"
+    lang_tokens = None
+    lang_attention_mask = None
+    
+    if cfg.env.type == "so101_joint_control":
+        try:
+            from transformers import AutoTokenizer
+            tokenizer = AutoTokenizer.from_pretrained("HuggingFaceTB/SmolVLM2-500M-Video-Instruct")
+            # 預先 tokenize 任務描述
+            tokenized = tokenizer(
+                task_prompt, 
+                return_tensors="pt", 
+                padding="max_length", 
+                max_length=48,
+                truncation=True
+            )
+            lang_tokens = tokenized["input_ids"].to(device)
+            lang_attention_mask = tokenized["attention_mask"].bool().to(device)
+            print(f"[INFO] Tokenized task: {task_prompt.strip()}")
+            print(f"[INFO] Token IDs shape: {lang_tokens.shape}")
+        except Exception as e:
+            print(f"[WARN] Failed to initialize tokenizer: {e}")
 
     env_cls = EnvFactory.get_strategies(cfg.env.type)
     env = env_cls(render_mode="human")
@@ -48,13 +121,24 @@ def main(cfg: EvalPipelineConfig):
             policy.reset()
 
         while True:
-            obs = preprocess_observation(observation)
-            obs = {k: obs[k].to(device, non_blocking=device.type == "cuda") for k in obs}
-            obs["task"] = cfg.env.type
+            # 根據環境類型選擇預處理函數
+            if cfg.env.type == "so101_joint_control":
+                obs = preprocess_so101_observation(observation)
+                # 添加語言 tokens（VLA 模型需要）
+                if lang_tokens is not None:
+                    obs["observation.language.tokens"] = lang_tokens
+                    obs["observation.language.attention_mask"] = lang_attention_mask
+            else:
+                obs = preprocess_observation(observation)
+            
+            # 使用 preprocessor 正規化觀測（包含移動到設備）
+            obs = preprocessor(obs)
 
             with torch.inference_mode():
                 action = policy.select_action(obs)
 
+            # 使用 postprocessor unnormalize action（關鍵！）
+            action = postprocessor(action)
             action = action.to("cpu").numpy().flatten()
             print("action:", action)
 

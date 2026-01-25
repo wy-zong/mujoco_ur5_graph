@@ -1,7 +1,7 @@
 #pick_box_env.py
 import os
 # 設定 MuJoCo 使用 GPU 渲染 (Windows 需要 wgl 或 glfw)
-# os.environ["MUJOCO_GL"] = "glfw"
+os.environ["MUJOCO_GL"] = "glfw"
 import time
 from pathlib import Path
 import numpy as np
