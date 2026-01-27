@@ -41,6 +41,19 @@ def parse_args():
 
 
 def teleoperate(env_cls: Type[Env], handler_type):
+    """
+    執行遙操作資料收集流程
+    
+    Args:
+        env_cls: 環境類別，包含環境配置資訊
+        handler_type: 操作處理器類型（例如 'keyboard'）
+    
+    Returns:
+        dict: 包含觀察（observations）和動作（actions）的資料字典
+              - '/observations/agent_pos': 機器人關節位置列表
+              - '/observations/pixels/{camera}': 各相機的影像列表  
+              - '/actions': 執行的動作列表
+    """
     handler_cls = HandlerFactory.get_strategies(env_cls.name + "_" + handler_type)
     handler = handler_cls()
     handler.start()
@@ -61,21 +74,26 @@ def teleoperate(env_cls: Type[Env], handler_type):
     rate_limiter = RateLimiter(frequency=env.control_hz)
 
     action = handler.action
-    last_action = action.copy()
     while not handler.done:
         if not handler.sync:
             rate_limiter.sleep()
             continue
 
-        last_action[:] = action
         action[:] = handler.action
-        if np.max(np.abs(action - last_action)) > 1e-6:
-            data_dict['/observations/agent_pos'].append(observation['agent_pos'])
-            for camera in env_cls.cameras:
-                data_dict[f'/observations/pixels/{camera}'].append(observation['pixels'][camera])
-            data_dict['/actions'].append(action)
-        else:
-            action[:] = last_action
+        
+        # 記錄當前觀察和動作
+        # 注意：這裡記錄的是 observation_t 和即將執行的 action_t
+        data_dict['/observations/agent_pos'].append(observation['agent_pos'])
+        for camera in env_cls.cameras:
+            data_dict[f'/observations/pixels/{camera}'].append(observation['pixels'][camera])
+        data_dict['/actions'].append(action.copy())
+        
+        # [已移除] 動作幅度過濾功能
+        # 原本的設計會跳過變化小於閾值的動作，但這會導致以下問題：
+        # 1. 破壞時間序列的連續性，影響模仿學習的訓練
+        # 2. 丟失重要的靜止狀態資訊（模型需要學習何時該停止）
+        # 3. 造成 observation-action 配對不一致
+        # 因此改為記錄所有 frames，保留完整的軌跡資料
 
         observation, reward, terminated, truncated, info = env.step(action)
 
@@ -94,6 +112,21 @@ def teleoperate(env_cls: Type[Env], handler_type):
 
 
 def write_to_h5(env_cls: Type[Env], data_dict: dict):
+    """
+    將收集的資料寫入 HDF5 檔案
+    
+    Args:
+        env_cls: 環境類別，用於獲取資料維度和相機配置
+        data_dict: 包含觀察和動作的資料字典
+    
+    檔案結構：
+        outputs/datasets/{env_name}_hdf5/episode_{index:06d}.hdf5
+        ├── observations/
+        │   ├── agent_pos: (T, state_dim) 關節位置
+        │   └── pixels/
+        │       └── {camera}: (T, H, W, 3) 影像資料
+        └── actions: (T, action_dim) 動作序列
+    """
     h5_dir = Path(__file__).parent.parent.parent / Path("outputs/datasets") / Path(env_cls.name + "_hdf5")
     h5_dir.mkdir(parents=True, exist_ok=True)
 
@@ -119,30 +152,41 @@ def write_to_h5(env_cls: Type[Env], data_dict: dict):
 
         for name, array in data_dict.items():
             root[name][...] = array
+    
+    print(f"✓ 資料已儲存至: {h5_path}")
+    print(f"✓ Episode 長度: {episode_length} frames")
 
 
-# def main():
-#     args = parse_args()
-
-#     env_cls = EnvFactory.get_strategies(args.env_type)
-
-#     data_dict = teleoperate(env_cls, args.handler_type)
-
-#     write_to_h5(env_cls, data_dict)
-
-# 在你現在的 main() 同檔加入
-from imitation_learning_lerobot.envs.scripted_flow import scripted_pick_and_place  # ← 就是上面那個檔
+from imitation_learning_lerobot.envs.scripted_flow import scripted_pick_and_place
 
 def main():
+    """
+    資料收集主程式
+    
+    支援兩種模式：
+    1. 腳本化自動收集：--handler.type=script/scripted/auto
+    2. 手動遙操作收集：--handler.type=keyboard 等
+    """
     args = parse_args()
     env_cls = EnvFactory.get_strategies(args.env_type)
 
+    # 腳本化自動收集模式
     if args.handler_type.lower() in ["script", "scripted", "auto"]:
         scripted_pick_and_place(env_cls)
         return
 
-    # 原本的手動/鍵盤遙操作路徑
+    # 手動/鍵盤遙操作路徑
     data_dict = teleoperate(env_cls, args.handler_type)
+    
+    # 資料驗證：確保有收集到資料才進行儲存
+    if not data_dict['/actions']:
+        print("⚠ 警告：沒有收集到任何資料，取消儲存")
+        return
+    
+    print(f"\n📊 收集統計：")
+    print(f"   - 總 frames: {len(data_dict['/actions'])}")
+    print(f"   - 相機數量: {len(env_cls.cameras)}")
+    
     write_to_h5(env_cls, data_dict)
 
 if __name__ == '__main__':

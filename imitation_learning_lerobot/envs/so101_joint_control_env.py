@@ -168,7 +168,7 @@ class SO101JointControlEnv(Env):
             return box_local_pos
         return np.array([0.25, 0.0, 0.05])  # 預設
 
-    def _compute_ik(self, target_pos_local, current_q_deg, orientation_weight=0.0):
+    def _compute_ik(self, target_pos_local, current_q_deg, orientation_weight=0.0, target_rotation=None):
         """
         使用逆運動學計算達到目標位置的關節角度
         
@@ -176,16 +176,22 @@ class SO101JointControlEnv(Env):
             target_pos_local: 相對於 SO101 基座的目標位置
             current_q_deg: 當前關節角度（度）
             orientation_weight: 姿態約束權重 (0.0 = 不約束, >0 = 約束姿態)
+            target_rotation: 預期的目標旋轉矩陣 (sm.SO3 物件或類似)，若為 None 則預設垂直向下
         
         Returns:
             關節角度（度）或 None（失敗時）
         """
         # 建立目標姿態矩陣
         if orientation_weight > 0:
-            # 夾爪垂直向下：繞 Y 軸旋轉 90 度
-            R_down = sm.SO3.Ry(np.pi/2)
-            T_target = sm.SE3.Rt(R_down, target_pos_local)
-            desired_ee_pose = T_target.A
+            # 如果有指定明確的旋轉矩陣，優先使用
+            if target_rotation is not None:
+                T_target = sm.SE3.Rt(target_rotation, target_pos_local)
+                desired_ee_pose = T_target.A
+            else:
+                # 預設：夾爪垂直向下 (繞 Y 軸旋轉 90 度)
+                R_down = sm.SO3.Ry(np.pi/2)
+                T_target = sm.SE3.Rt(R_down, target_pos_local)
+                desired_ee_pose = T_target.A
         else:
             T_target = sm.SE3.Trans(target_pos_local)
             desired_ee_pose = T_target.A
@@ -206,6 +212,52 @@ class SO101JointControlEnv(Env):
             import traceback
             traceback.print_exc()
             return None
+
+    def _is_box_grasped(self):
+        """
+        檢測方塊是否被夾爪正確夾住
+        
+        判斷依據:
+        1. 方塊相對於夾爪的位置穩定 (在夾爪座標系內)
+        2. 夾爪處於閉合狀態
+        3. 方塊高度高於桌面一定距離
+        
+        Returns:
+            bool: 若方塊被成功夾取則返回 True,否則 False
+        """
+        # 獲取夾爪和方塊的位置
+        gripper_body_id = mujoco.mj_name2id(self._mj_model, mujoco.mjtObj.mjOBJ_BODY, "gripper_frame_link")
+        box_body_id = mujoco.mj_name2id(self._mj_model, mujoco.mjtObj.mjOBJ_BODY, "Box")
+        
+        if gripper_body_id < 0 or box_body_id < 0:
+            return False
+        
+        gripper_pos = self._mj_data.xpos[gripper_body_id].copy()
+        box_pos = self._mj_data.xpos[box_body_id].copy()
+        
+        # 方塊相對於夾爪
+        relative_pos = box_pos - gripper_pos
+        
+        # 檢查 1: 方塊在夾爪下方且距離合理 (放寬標準)
+        # 垂直容差放寬到 15cm，水平 10cm，以容忍夾取過程中的滑動
+        vertical_dist = abs(relative_pos[2])
+        horizontal_dist = np.linalg.norm(relative_pos[:2])
+        
+        is_close = vertical_dist < 0.15 and horizontal_dist < 0.10
+        
+        # 檢查 2: 夾爪不需要完全閉合 (放寬標準)
+        # < 60 度代表不是"全開" (全開約 80 度)，也不需要檢查"過度閉合"，
+        # 主要依賴"是否被抬起"來判斷成功
+        gripper_angle_rad = mj.get_joint_q(self._mj_model, self._mj_data, "so101_gripper_joint")[0]
+        gripper_angle_deg = np.rad2deg(gripper_angle_rad)
+        is_gripper_contact = gripper_angle_deg < 60.0
+        
+        # 檢查 3: 方塊被抬離桌面 (桌面高度 0.745m)
+        TABLE_HEIGHT = 0.745
+        is_lifted = box_pos[2] > (TABLE_HEIGHT + 0.08)  # 抬高至少 8cm
+        
+        return is_close and is_gripper_contact and is_lifted
+
 
     def step(self, action):
         """
@@ -309,6 +361,10 @@ class SO101JointControlEnv(Env):
         observations = []
         actions = []
         
+        # IK 失敗計數器
+        ik_failure_count = 0
+        MAX_CONSECUTIVE_IK_FAILURES = 5
+        
         # 取得初始關節角度 (使用 float64 以相容 placo)
         current_q_deg = np.rad2deg(np.array([
             mj.get_joint_q(self._mj_model, self._mj_data, jn)[0]
@@ -330,7 +386,8 @@ class SO101JointControlEnv(Env):
         
         # 定義各階段的末端位置（分軸移動）
         # 階段 1: 從當前位置往上抬高（只改 Z）
-        high_z = max(current_ee_pos[2], 0.18)  # 確保足夠高
+        # high_z = max(current_ee_pos[2], 0.15)  # 確保足夠高
+        high_z = 0.15  # 確保足夠高
         pos_high = np.array([current_ee_pos[0], current_ee_pos[1], high_z])
         
         # 階段 2: 水平移動到方塊上方（只改 XY，保持高 Z）
@@ -368,34 +425,73 @@ class SO101JointControlEnv(Env):
             
             print(f"[move] From {current_ee_pos} to {target_pos}, ori_weight: {start_ori_weight} -> {target_orientation_weight}")
             
-            # 漸進式移動：位置和姿態權重都做插值
+            # 漸進式移動:位置和姿態權重都做插值
+            
+            # === 下面是新增的姿態插值邏輯 (Slerp) ===
+            # 1. 獲取當前實際姿態 (作為插值起點)
+            T_current_fk = self.lerobot_kinematics.forward_kinematics(current_q_deg)
+            R_start = sm.SO3(T_current_fk[:3, :3])
+            q_start = sm.UnitQuaternion(R_start)
+            
+            # 2. 定義目標姿態 (垂直向下，作為插值終點)
+            R_down = sm.SO3.Ry(np.pi/2)
+            q_end = sm.UnitQuaternion(R_down)
+            
             for step in range(1, steps + 1):
                 alpha = step / steps
+                
+                # 位置插值 (Linear)
                 interp_pos = current_ee_pos + alpha * (target_pos - current_ee_pos)
                 
-                # 姿態權重也做插值
+                # 姿態權重插值
                 interp_ori_weight = start_ori_weight + alpha * (target_orientation_weight - start_ori_weight)
                 
-                # 用 IK 計算
-                ik_result = self._compute_ik(interp_pos, current_q_deg, orientation_weight=interp_ori_weight)
-                if ik_result is not None:
-                    target_q = np.zeros(6, dtype=np.float32)
-                    target_q[:5] = ik_result[:5].astype(np.float32)
+                # 姿態插值 (Slerp)
+                # 只有當我們真正關心姿態 (target_weight > 0) 且有實際過渡時才計算
+                if target_orientation_weight > 0:
+                    q_interp = q_start.interp(q_end, alpha)
+                    R_interp = sm.SO3(q_interp.R)
+                else:
+                    R_interp = None # 不強制指定，_compute_ik 會忽略或用預設
+                
+                # 用 IK 計算 (傳入插值後的姿態 R_interp)
+                ik_result = self._compute_ik(interp_pos, current_q_deg, orientation_weight=interp_ori_weight, target_rotation=R_interp)
+                
+                if ik_result is None:
+                    ik_failure_count += 1
+                    print(f"[WARN] IK failed at step {step}/{steps} (consecutive failures: {ik_failure_count})")
+                    
+                    if ik_failure_count >= MAX_CONSECUTIVE_IK_FAILURES:
+                        print(f"[ERROR] Too many consecutive IK failures, aborting episode")
+                        raise RuntimeError("IK solver failed repeatedly")
+                    
+                    # 保持當前角度
+                    target_q = current_q_deg.copy()
+                    target_q[5] = gripper_angle
+                else:
+                    ik_failure_count = 0  # 成功則重置計數器
+                    target_q = current_q_deg.copy()
+                    target_q[:5] = ik_result[:5]  # placo 返回 float64,自動轉為 float32
                     target_q[5] = gripper_angle
                     current_q_deg = target_q.copy()
                 
                 observations.append(observation)
-                actions.append(current_q_deg.copy())
+                # 儲存 action 時轉為 float32 (LeRobot 資料集格式)
+                actions.append(current_q_deg.astype(np.float32).copy())
                 
                 observation, _, _, _, _ = self.step(current_q_deg)
                 self.render()
             
-            # 更新當前末端位置
-            current_ee_pos = target_pos.copy()
+            # 用 FK 重新計算實際末端位置
+            T_final = self.lerobot_kinematics.forward_kinematics(current_q_deg)
+            current_ee_pos = T_final[:3, 3].copy()
+            position_error = np.linalg.norm(current_ee_pos - target_pos)
+            print(f"[move] Target: {target_pos}, Actual: {current_ee_pos}, Error: {position_error:.4f}m")
             
             # 停留
             for _ in range(hold_frames):
                 observations.append(observation)
+                # 儲存 action 時轉為 float32 (LeRobot 資料集格式)
                 actions.append(current_q_deg.astype(np.float32).copy())
                 observation, _, _, _, _ = self.step(current_q_deg)
                 self.render()
@@ -424,6 +520,7 @@ class SO101JointControlEnv(Env):
             # 停留讓夾爪穩定
             for _ in range(15):
                 observations.append(observation)
+                # 儲存 action 時轉為 float32 (LeRobot 資料集格式)
                 actions.append(current_q_deg.astype(np.float32).copy())
                 observation, _, _, _, _ = self.step(current_q_deg)
                 self.render()
@@ -434,10 +531,10 @@ class SO101JointControlEnv(Env):
         
         print("[run] Phase 2: Move above box and adjust orientation")
         # 移動的同時漸進調整姿態（位置和姿態同時過渡）
-        move_to_target(pos_above_box, GRIPPER_OPEN, steps=60, hold_frames=5, target_orientation_weight=0.1)
+        move_to_target(pos_above_box, GRIPPER_OPEN, steps=60, hold_frames=5, target_orientation_weight=0.0)
         
         print("[run] Phase 3: Descend to grasp")
-        move_to_target(pos_grasp, GRIPPER_OPEN, steps=50, hold_frames=5, target_orientation_weight=0.1)
+        move_to_target(pos_grasp, GRIPPER_OPEN, steps=50, hold_frames=5, target_orientation_weight=0.01)
         
         print("[run] Phase 4: Close gripper")
         close_gripper()
@@ -450,8 +547,13 @@ class SO101JointControlEnv(Env):
         
         print(f"[run] Completed! Total frames: {len(observations)}")
         
+        # 檢測夾取是否成功
+        is_success = self._is_box_grasped()
+        print(f"[run] Grasp success: {is_success}")
+        
         return {
             "observations": observations,
-            "actions": actions
+            "actions": actions,
+            "success": is_success
         }
 
