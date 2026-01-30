@@ -30,7 +30,8 @@ class SO101JointControlEnv(Env):
     - 輸入 action: 6 維關節角度目標（度）
     - 輸出 observation: 匹配模型訓練格式
     """
-    _name = "so101_pick_cube"
+    # _name = "so101_pick_cube"
+    _name = "so101_joint_control"  # 與 so101_joint_control_env_config.py 一致
     _robot_type = "SO101"
     _height = 480
     _width = 640
@@ -39,8 +40,9 @@ class SO101JointControlEnv(Env):
         "wrist_flex", "wrist_roll", "gripper"
     ]
     _cameras = [
-        "top",   # 後方高處俯視相機
-        "hand"   # 跟隨夾爪相機
+        "camera1",   # top: 後方高處俯視相機
+        "camera2",   # hand: 跟隨夾爪相機
+        "camera3"    # side: 側面相機
     ]
     _state_dim = 6   # 6 joints
     _action_dim = 6  # 6 joint targets (degrees)
@@ -100,13 +102,20 @@ class SO101JointControlEnv(Env):
         mujoco.mj_resetData(self._mj_model, self._mj_data)
         mujoco.mj_forward(self._mj_model, self._mj_data)
 
-        # 初始化關節位置為零
-        initial_q = np.zeros(6)
+        # # 初始化關節位置為零
+        # initial_q = np.zeros(6)
+        # 定義一個變數方便複用
+        HOME_Q = np.array([-7.49507e-09, -1.73664, 1.51484, 1.25158, 0.046801, -0.173534])
+        # 然後在 reset() 裡：
+        initial_q = HOME_Q
         for i, jn in enumerate(self._so101_joint_names):
             try:
                 mj.set_joint_q(self._mj_model, self._mj_data, jn, initial_q[i])
             except:
                 print(f"[WARN] Joint '{jn}' not found, skipping.")
+
+        # --- 重要：同步控制指令 ---
+        self._mj_data.ctrl[:6] = initial_q 
         
         mujoco.mj_forward(self._mj_model, self._mj_data)
 
@@ -129,14 +138,15 @@ class SO101JointControlEnv(Env):
         # 重置時間
         self._mj_data.time = 0.0
         self._step_num = 0
-        
+        HOME_Q = np.array([-7.49507e-09, -1.73664, 1.51484, 1.25158, 0.046801, -0.173534])
         # 重置關節到初始位置
-        for jn in self._so101_joint_names:
+        for i, jn in enumerate(self._so101_joint_names):
             try:
-                mj.set_joint_q(self._mj_model, self._mj_data, jn, 0.0)
+                mj.set_joint_q(self._mj_model, self._mj_data, jn, HOME_Q[i])
             except:
                 pass
         
+        self._mj_data.ctrl[:6] = HOME_Q 
         # 設定 Box 位置
         box_pos = self._box_positions[self._current_box_idx % len(self._box_positions)]
         box_jnt_id = mujoco.mj_name2id(self._mj_model, mujoco.mjtObj.mjOBJ_JOINT, "Box")
@@ -329,12 +339,18 @@ class SO101JointControlEnv(Env):
         self._mj_renderer.update_scene(self._mj_data, hand_cam_id)
         image_hand = self._mj_renderer.render()
 
+        side_cam_id = mujoco.mj_name2id(self._mj_model, mujoco.mjtObj.mjOBJ_CAMERA, "side")
+        self._mj_renderer.update_scene(self._mj_data, side_cam_id)
+        image_side = self._mj_renderer.render()
+
         obs = {
             'pixels': {
-                'top': image_top,
-                'hand': image_hand
+                'camera1': image_top,
+                'camera2': image_hand,
+                'camera3': image_side
             },
-            'agent_pos': joint_angles_deg
+            # 'agent_pos': joint_angles_deg
+            'observation.state' : joint_angles_deg
         }
         
         self._render_cache = image_top
@@ -375,6 +391,13 @@ class SO101JointControlEnv(Env):
         T_init = self.lerobot_kinematics.forward_kinematics(current_q_deg)
         current_ee_pos = T_init[:3, 3].copy()
         print(f"[run] Initial EE position from FK: {current_ee_pos}")
+
+        # 用 FK 獲取回家時的末端位置
+        home_q_rad = np.array([-7.49507e-09, -1.73664, 1.51484, 1.25158, 0.046801, -0.173534])
+        home_q_deg = np.rad2deg(home_q_rad)
+        T_home = self.lerobot_kinematics.forward_kinematics(home_q_deg)
+        home_ee_pos = T_home[:3, 3].copy()
+        print(f"[run] home EE position from FK: {home_ee_pos}")
         
         # 取得方塊位置（相對於 SO101 基座）
         box_local = self._get_box_pos_local()
@@ -402,7 +425,8 @@ class SO101JointControlEnv(Env):
         pos_lift = np.array([box_local[0], box_local[1], high_z])
         
         # 階段 5: 返回初始位置
-        pos_home = current_ee_pos.copy()
+        # pos_home = current_ee_pos.copy()
+        pos_home = np.array([-7.49507e-09, -1.73664, 1.51484, 1.25158, 0.046801, -0.173534])
         
         print(f"[run] Trajectory: {current_ee_pos} -> {pos_high} -> {pos_above_box} -> {pos_grasp} -> {pos_lift} -> {pos_home}")
         
@@ -496,6 +520,34 @@ class SO101JointControlEnv(Env):
                 observation, _, _, _, _ = self.step(current_q_deg)
                 self.render()
         
+        def open_gripper():
+            """打開夾爪"""
+            nonlocal observation, current_q_deg
+            
+            target_q = current_q_deg.copy()
+            target_q[5] = GRIPPER_OPEN
+            
+            steps = 20
+            start_q = current_q_deg.copy()
+            for step in range(1, steps + 1):
+                alpha = step / steps
+                action = (start_q + alpha * (target_q - start_q)).astype(np.float32)
+                
+                observations.append(observation)
+                actions.append(action.copy())
+                
+                observation, _, _, _, _ = self.step(action)
+                self.render()
+            
+            current_q_deg = target_q.copy()
+            
+            # 停留
+            for _ in range(10):
+                observations.append(observation)
+                actions.append(current_q_deg.astype(np.float32).copy())
+                observation, _, _, _, _ = self.step(current_q_deg)
+                self.render()
+
         def close_gripper():
             """閉合夾爪"""
             nonlocal observation, current_q_deg
@@ -525,25 +577,64 @@ class SO101JointControlEnv(Env):
                 observation, _, _, _, _ = self.step(current_q_deg)
                 self.render()
         
-        # 執行夾取序列
-        print("[run] Phase 1: Raise up")
-        move_to_target(pos_high, GRIPPER_OPEN, steps=20, hold_frames=3, target_orientation_weight=0.0)
+        def move_to_joint_target(target_q_deg, steps=40, hold_frames=10):
+            """
+            直接在關節空間插值移動到目標關節角度
+            用於確保回到確定的初始姿勢 (Home)
+            """
+            nonlocal observation, current_q_deg
+            
+            start_q = current_q_deg.copy()
+            
+            # print(f"[move_joint] From {start_q[:6]} to {target_q_deg[:6]}")
+            
+            for step in range(1, steps + 1):
+                alpha = step / steps
+                # 線性插值
+                action = (start_q + alpha * (target_q_deg - start_q)).astype(np.float32)
+                
+                observations.append(observation)
+                actions.append(action.copy())
+                
+                observation, _, _, _, _ = self.step(action)
+                self.render()
+            
+            current_q_deg = target_q_deg.copy()
+            
+            # 停留
+            for _ in range(hold_frames):
+                observations.append(observation)
+                actions.append(current_q_deg.astype(np.float32).copy())
+                observation, _, _, _, _ = self.step(current_q_deg)
+                self.render()
+
+        # --- 執行夾取序列 ---
+        # 初始狀態：夾爪是關閉的 (HOME_Q)
         
-        print("[run] Phase 2: Move above box and adjust orientation")
-        # 移動的同時漸進調整姿態（位置和姿態同時過渡）
-        move_to_target(pos_above_box, GRIPPER_OPEN, steps=60, hold_frames=5, target_orientation_weight=0.0)
+        print("[run] Phase 1: Raise up (Stay Closed)")
+        # 傳入目前的夾爪角度，避免第一幀跳變
+        move_to_target(pos_high, current_q_deg[5], steps=30, hold_frames=5, target_orientation_weight=0.1)
         
-        print("[run] Phase 3: Descend to grasp")
+        print("[run] Phase 2: Move above box (Stay Closed)")
+        move_to_target(pos_above_box, current_q_deg[5], steps=30, hold_frames=5, target_orientation_weight=0.0)
+        
+        print("[run] Phase 3: Open gripper")
+        open_gripper()
+        
+        print("[run] Phase 4: Descend to grasp")
         move_to_target(pos_grasp, GRIPPER_OPEN, steps=50, hold_frames=5, target_orientation_weight=0.01)
         
-        print("[run] Phase 4: Close gripper")
+        print("[run] Phase 5: Close gripper")
         close_gripper()
         
-        print("[run] Phase 5: Lift")
-        move_to_target(pos_lift, GRIPPER_CLOSE, steps=30, hold_frames=5, target_orientation_weight=0.0)
+        print("[run] Phase 6: Lift")
+        move_to_target(pos_lift, GRIPPER_CLOSE, steps=30, hold_frames=5, target_orientation_weight=0.1)
         
-        print("[run] Phase 6: Return home")
-        move_to_target(pos_home, GRIPPER_CLOSE, steps=40, hold_frames=10, target_orientation_weight=0.0)
+        print("[run] Phase 7: Return home (Joint Space)")
+        # 使用關節插值直接回去，確保姿勢完全一致
+        target_home_q = home_q_deg.copy()
+        # target_home_q[5] = GRIPPER_CLOSE # 確保回程夾爪是閉合的
+        move_to_joint_target(target_home_q, steps=40, hold_frames=10)
         
         print(f"[run] Completed! Total frames: {len(observations)}")
         

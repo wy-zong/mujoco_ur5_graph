@@ -1,4 +1,4 @@
-python /home/wuc120/imitation_learning_lerobot/imitation_learning_lerobot/scripts/collect_data_teleoperation.py \
+python imitation_learning_lerobot/scripts/collect_data_teleoperation.py \
   --env.type=pick_box \
   --handler.type=keyboard
 
@@ -12,4 +12,6 @@ python /home/wuc120/imitation_learning_lerobot/imitation_learning_lerobot/script
   --handler.type=keyboard
 
 cd D:/lerobot_arm/mujoco_ur5_graph
-python imitation_learning_lerobot/scripts/collect_data_teleoperation.py --env.type=pick_box --handler.type=keyboard
+python imitation_learning_lerobot/scripts/collect_data_teleoperation.py --env.type=so101_pick_box --handler.type=keyboard
+
+python imitation_learning_lerobot/scripts/collect_data.py --env.type=so101_pick_cube --episode=20 --display

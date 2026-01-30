@@ -3,7 +3,7 @@
 <mujoco model="so101_pick_box_scene">
 
     <compiler angle="radian" autolimits="true" />
-    <option timestep="0.002" integrator="implicitfast" solver="PGS" cone="elliptic" impratio="10">
+    <option timestep="0.002" integrator="implicitfast" solver="PGS" cone="elliptic" impratio="10" noslip_iterations="3">
         <!-- 啟用 multiccd 和 nativeccd 以改善碰撞偵測，防止滑脫 -->
         <flag multiccd="enable" nativeccd="enable"/>
     </option>
@@ -43,9 +43,12 @@
 
         <!-- Cameras -->
         <!-- top: 後方高處俯視，可看到整隻手臂和操作區域 -->
-        <camera name="top" pos="0.855 0.960 2.007" xyaxes="-0.284 -0.959 -0.000 0.734 -0.218 0.643" mode="fixed" fovy="60" />
+        <!-- <camera name="top" pos="0.855 0.960 2.007" xyaxes="-0.284 -0.959 -0.000 0.734 -0.218 0.643" mode="fixed" fovy="60" /> -->
+        <camera name="top" pos="2.685 0.585 2.055" xyaxes="-0.009 1.000 0.000 -0.774 -0.007 0.633"/>
+
         <!-- <camera name="top_camera" pos="1.5 0.6 1.5" xyaxes="0 1 0 -1 0 1" mode="fixed" /> -->
         <!-- <camera name="hand_camera" pos="1.45 0.3 1.0" xyaxes="0 1 0 -0.5 0 1" mode="fixed" /> -->
+        <camera name="side" pos="2.224 1.451 1.025" xyaxes="-0.839 0.545 -0.000 -0.019 -0.029 0.999"/>
 
         <!-- Target point visualization (red sphere) - controlled by environment -->
         <body name="target_marker" pos="1.3 0.6 0.8" mocap="true">
@@ -56,7 +59,11 @@
         <body name="Box" pos="1.70 0.6 0.78" quat="1 0 0 0">
             <joint name="Box" type="free" damping="0.05"/>
             <geom name="Box" type="box" size="0.01 0.01 0.01" rgba="1 0 0 1" 
-                  condim="6" />
+                  condim="6" 
+                  friction="5.0 1.0 0.5"
+                  solimp="0.95 0.99 0.001" 
+                  solref="0.004 1"
+                  priority="1"/>
         </body>
 
         <!-- Table -->
@@ -93,5 +100,9 @@
         <!-- SO101 gripper grasping constraints (for future use) -->
         <weld name="grasp_so101" body1="so101_gripper" body2="Box" active="false" />
     </equality>
+
+    <keyframe>
+        <key name="home" qpos="-7.49507e-09 -1.74664 1.51484 1.25158 0.046801 -0.174534 1.69826 0.603792 0.749784 0.999998 7.56413e-06 -3.27543e-08 0.00219379" ctrl="0 -1.745 1.69 1.658 0 -0.1745" />
+    </keyframe>
 
 </mujoco>

@@ -159,7 +159,9 @@ class SO101PickBoxEnv(Env):
             print("[WARN] SO101 base body not found in XML, using default base pose.")
 
         # SO101 初始姿勢
-        self._so101_q = np.array([0.0, 0.0, 0.0, 0.0, 0.0, 0.0])
+        # self._so101_q = np.array([0.0, 0.0, 0.0, 0.0, 0.0, 0.0])
+        self._so101_q = np.array([-7.49507e-09,-1.74664,1.51484,1.25158,0.046801,-0.174534])
+
         self._so101.set_joint(self._so101_q)
 
         for i, jn in enumerate(self._so101_joint_names):
