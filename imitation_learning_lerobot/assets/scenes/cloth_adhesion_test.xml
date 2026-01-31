@@ -1,0 +1,96 @@
+<mujoco model="Cloth adhesion test">
+  <!-- 基於官方 adhesion 範例，加入布料測試 -->
+  <option timestep="0.002" integrator="implicitfast" solver="PGS" cone="elliptic"/>
+  
+  <size memory="512000000"/>
+
+  <visual>
+    <headlight diffuse=".4 .4 .4" ambient=".2 .2 .2"/>
+  </visual>
+
+  <asset>
+    <texture name="cloth_texture" type="2d" file="D:/lerobot_arm/mujoco_ur5_graph/imitation_learning_lerobot/textures/chequered_rag.png" />
+    <material name="cloth_material" texture="cloth_texture" />
+    <texture type="2d" name="groundplane" builtin="checker" rgb1="0.2 0.3 0.4" rgb2="0.1 0.2 0.3" width="300" height="300"/>
+    <material name="groundplane" texture="groundplane" texuniform="true" texrepeat="5 5"/>
+  </asset>
+
+  <default>
+    <joint damping=".3" axis="0 1 0"/>
+    <geom type="box" friction=".5"/>
+    <default class="active_adhesion">
+      <!--
+        Geoms with active_adhesion class have margin+gap to create a layer of 
+        inactive contacts that can be used by the adhesion actuator.
+        設定 contype=2, conaffinity=2 來匹配布料的接觸類型！
+      -->
+      <geom rgba=".8 .5 .5 1" margin=".01" gap=".01" contype="2" conaffinity="2"/>
+    </default>
+  </default>
+
+  <worldbody>
+    <light pos="0 0 2" dir="0 0 -1" directional="true"/>
+    <geom name="floor" size="2 2 0.05" type="plane" material="groundplane" contype="1" conaffinity="3"/>
+
+    <!-- 簡單的可控夾爪臂 - 起始位置調低 -->
+    <body name="arm_base" pos="0 0 0.3">
+      <joint name="arm_z" type="slide" axis="0 0 1" damping="10" range="-0.3 0.5"/>
+      <joint name="arm_x" type="slide" axis="1 0 0" damping="10"/>
+      <joint name="arm_y" type="slide" axis="0 1 0" damping="10"/>
+      <geom type="cylinder" size="0.02 0.05" rgba="0.5 0.5 0.8 1"/>
+      
+      <!-- 吸附器 body，使用 active_adhesion class -->
+      <body name="gripper_pad" pos="0 0 -0.06" childclass="active_adhesion">
+        <!-- 4 個小 box 組成吸附面 -->
+        <geom name="pad1" size=".02 .02 .01" pos="0.02 0.02 0"/>
+        <geom name="pad2" size=".02 .02 .01" pos="0.02 -.02 0"/>
+        <geom name="pad3" size=".02 .02 .01" pos="-.02 0.02 0"/>
+        <geom name="pad4" size=".02 .02 .01" pos="-.02 -.02 0"/>
+      </body>
+    </body>
+
+    <!-- 測試用方塊 - 使用相同的 contype/conaffinity -->
+    <body name="test_box" pos="0.3 0 0.05">
+      <freejoint/>
+      <geom type="box" size="0.04 0.04 0.04" rgba="0.3 0.8 0.3 1" mass="0.1" 
+            contype="2" conaffinity="2"/>
+    </body>
+
+    <!-- 測試用圓球 - 使用相同的 contype/conaffinity -->
+    <body name="test_sphere" pos="-0.3 0 0.05">
+      <freejoint/>
+      <geom type="sphere" size="0.04" rgba="0.3 0.3 0.8 1" mass="0.1"
+            contype="2" conaffinity="2"/>
+    </body>
+
+    <!-- 布料 -->
+    <flexcomp name="cloth" type="mesh" radius="0.005" dim="2" pos="0 0 0.2" mass="0.05" material="cloth_material" 
+              file="D:/lerobot_arm/mujoco_ur5_graph/imitation_learning_lerobot/assets/mesh/towelwy.obj" scale="0.4 0.4 0.4">
+      <edge equality="true" damping="1.0"/>
+      <!-- <contact selfcollide="none" internal="false" contype="2" conaffinity="2" condim="3"  -->
+      <contact selfcollide="none" internal="false" condim="3" 
+               friction="1.2 0.01 0.001" solref="0.02 1" solimp="0.90 0.99 0.003"/>
+      <elasticity poisson="0.4" thickness="0.0005" young="85242"/>
+    </flexcomp>
+
+    <!-- 軟體方塊 (Soft Box) -->
+    <flexcomp name="soft_box" type="box" count="5 5 5" pos="0 0.2 0.1" mass="0.5" 
+              rgba="0.8 0.5 0.3 1" scale="0.05 0.05 0.05">
+      <edge equality="true" damping="1.0"/>
+      <!-- 使用與布料相同的接觸參數 -->
+      <contact selfcollide="none" internal="false" contype="2" conaffinity="2" condim="3" 
+              friction="1.2 0.01 0.001" solref="0.02 1" solimp="0.90 0.99 0.003"/>
+      <elasticity poisson="0.4" thickness="0.0005" young="85242"/>
+    </flexcomp>
+    
+  </worldbody>
+
+  <actuator>
+    <!-- 位置控制器 -->
+    <position name="move_z" joint="arm_z" ctrlrange="-0.3 0.3" kp="100"/>
+    <position name="move_x" joint="arm_x" ctrlrange="-0.5 0.5" kp="100"/>
+    <position name="move_y" joint="arm_y" ctrlrange="-0.5 0.5" kp="100"/>
+    <!-- adhesion actuator - 作用於 gripper_pad body -->
+    <adhesion name="adhere" body="gripper_pad" ctrlrange="0 1" gain="20"/>
+  </actuator>
+</mujoco>
