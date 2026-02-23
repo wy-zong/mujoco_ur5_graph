@@ -27,8 +27,7 @@ import json
 import shutil
 from pathlib import Path
 
-import pyarrow.compute as pc
-import pyarrow.dataset as ds
+import pyarrow.parquet as pq
 from PIL import Image
 
 
@@ -69,17 +68,27 @@ def iter_episode_rows(dataset_root: Path, episode_index: int, columns: list[str]
     if not data_dir.exists():
         raise FileNotFoundError(f"Data directory not found: {data_dir}")
 
-    parquet_ds = ds.dataset(str(data_dir), format="parquet")
     needed_cols = ["episode_index", "frame_index", *columns]
-    filter_expr = pc.field("episode_index") == episode_index
-    scanner = parquet_ds.scanner(columns=needed_cols, filter=filter_expr)
+    parquet_files = sorted(data_dir.rglob("*.parquet"))
+    if not parquet_files:
+        raise FileNotFoundError(f"No parquet files found under: {data_dir}")
 
-    for record_batch in scanner.to_batches():
-        data = record_batch.to_pydict()
-        n_rows = len(data["episode_index"])
-        for i in range(n_rows):
-            row = {key: data[key][i] for key in needed_cols}
-            yield row
+    for parquet_path in parquet_files:
+        pf = pq.ParquetFile(parquet_path)
+        schema_names = set(pf.schema_arrow.names)
+        for col in needed_cols:
+            if col not in schema_names:
+                raise KeyError(f"Column '{col}' not found in parquet: {parquet_path}")
+
+        # Use iter_batches to avoid pyarrow nested/chunked conversion limitations.
+        for record_batch in pf.iter_batches(batch_size=256, columns=needed_cols):
+            data = record_batch.to_pydict()
+            n_rows = len(data["episode_index"])
+            for i in range(n_rows):
+                if int(data["episode_index"][i]) != episode_index:
+                    continue
+                row = {key: data[key][i] for key in needed_cols}
+                yield row
 
 
 def save_image_cell(cell_value: dict, destination: Path, dataset_root: Path) -> None:

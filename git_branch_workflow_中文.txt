@@ -1,0 +1,34 @@
+﻿# lerobot 分支切換完整流程（PowerShell）
+# 專案根目錄：C:\Users\ccu\mujoco_ur5_graph
+
+# 0) 先確認目前狀態
+cd C:\Users\ccu\mujoco_ur5_graph
+git -C .\lerobot status -sb
+git -C .\lerobot remote -v
+
+# 1) 抓官方最新（你這邊官方遠端是 origin）
+git -C .\lerobot fetch origin
+
+# 2) 從官方 main 建立「乾淨分支」並切過去
+git -C .\lerobot switch -c upstream-main-clean origin/main
+
+# 3) 確認已切到乾淨分支
+git -C .\lerobot status -sb
+
+# 4) 隨時切回你自己的 fork 工作分支
+git -C .\lerobot switch wyzong/local-working-image-dataset-fix
+git -C .\lerobot status -sb
+
+# 5) 如果第 2 步顯示分支已存在，改用下面兩行
+git -C .\lerobot switch upstream-main-clean
+git -C .\lerobot reset --hard origin/main
+
+# 6) 如果切分支時被本地修改擋住，先暫存再切
+git -C .\lerobot stash -u
+git -C .\lerobot switch wyzong/local-working-image-dataset-fix
+git -C .\lerobot stash pop
+
+
+
+# 9) 不建立分支的臨時測試方式（Detached HEAD）
+git -C .\lerobot switch --detach fc296548cb6438b3036d046b43fe91951c87ea9a
