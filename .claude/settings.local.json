@@ -1,0 +1,20 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(python -m json.tool)",
+      "Bash(python -c \":*)",
+      "Bash(xargs grep:*)",
+      "Bash(python:*)",
+      "Bash(head -5 python -c \":*)",
+      "WebSearch",
+      "WebFetch(domain:github.com)",
+      "Bash(python3 -c \":*)",
+      "WebFetch(domain:datasets-server.huggingface.co)",
+      "Bash(C:/Users/ccu/anaconda3/envs/new_mj/python.exe -c \":*)",
+      "Bash(C:/Users/ccu/anaconda3/envs/new_mj/python.exe c:/Users/ccu/mujoco_ur5_graph/attention_video.py)",
+      "Bash(grep -n \"def write\\\\|def sync_write\\\\|def enable_torque\\\\|def disable_torque\\\\|def lock\" C:\\\\\\\\Users\\\\\\\\ccu\\\\\\\\mujoco_ur5_graph\\\\\\\\lerobot\\\\\\\\src\\\\\\\\lerobot\\\\\\\\motors\\\\\\\\feetech\\\\\\\\feetech.py)",
+      "Bash(grep *)",
+      "Bash(find C:\\\\\\\\Users\\\\\\\\ccu\\\\\\\\mujoco_ur5_graph -type f -name \"*.py\")"
+    ]
+  }
+}
